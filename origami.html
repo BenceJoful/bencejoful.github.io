@@ -1,0 +1,169 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Origami</title>
+    <!--<script type="text/javascript" src="js/reference/jquery-latest.js"></script>-->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"
+            integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="
+            crossorigin="anonymous"></script>
+
+    <script type="text/javascript">
+        'use strict';
+        $(document).ready(function () {
+
+            var selectedCellID = "";
+            var associations = {};
+            function addAssoc(cellID, cellID2) {
+                associations[cellID].add(cellID2);
+                exportDefinition();
+            }
+            function removeAssoc(cellID, cellID2) {
+                associations[cellID].delete(cellID2);
+                associations[cellID2].delete(cellID);
+                exportDefinition();
+            }
+            function getAssoc(cellID) {
+                let allAssoc = [];
+                for (var assoc of associations[cellID]) {
+                    allAssoc.push(assoc);
+                }
+                $("td").each(function () {
+                    if (associations[this.id].has(cellID)) {
+                        allAssoc.push(this.id);
+                    }
+                });
+                return allAssoc;
+
+            }
+
+            //start up each cell's associations.
+            //let givens = '0600 0 1 0006 0 0,5 0000 0 0 2 1,0000 3 0000 0 0 0000,0 0 0 4000 0 0,1 0004 0 0 0050 4,0000 0 0 0060 0 0000';
+            let givens = '411411,141111,414114,111411,141141,411414';
+            let table = $("#origamiTable");
+            let rowID = 0;
+            for (let row of givens.split(",")) {
+                rowID++;
+                let tr1 = $("<tr>");
+                let tr2 = $("<tr>");
+                table.append(tr1);
+                table.append(tr2);
+                let colID = 0;
+                for (let cell of row.split("")) {
+                    colID++;
+                    if (cell == 4) {
+                        tr1.append("<td id='r" + rowID.toString() + "c" + colID.toString() + "a'>");
+                        tr1.append("<td id='r" + rowID.toString() + "c" + colID.toString() + "b'>");
+                        tr2.append("<td id='r" + rowID.toString() + "c" + colID.toString() + "c'>");
+                        tr2.append("<td id='r" + rowID.toString() + "c" + colID.toString() + "d'>");
+                    } else {
+                        tr1.append("<td colspan=2 rowspan=2 id='r" + rowID.toString() + "c" + colID.toString() + "'>");
+                    }
+                }
+            }
+            $("td").each(function () {
+                associations[this.id] = new Set();
+            });
+            $("td").on("click", function () {
+                if (event.ctrlKey) {
+                    if ($(this).hasClass("highlighted")) {
+                        removeAssoc(selectedCellID, this.id);
+                    } else {
+                        addAssoc(selectedCellID, this.id);
+                    }
+                } else {
+                    selectedCellID = this.id;
+                    $(".selected").removeClass("selected");
+                    $(this).addClass("selected");
+                }
+                $(".highlighted").removeClass("highlighted");
+                for (let cellID of getAssoc(selectedCellID)) {
+                    $("#" + cellID).addClass("highlighted");
+                }
+            });
+
+            document.body.onkeydown = function (e) {
+                let num = Number(e.key);
+                if (Number.isInteger(num)) {
+                    let selectedCell = $("#" + selectedCellID);
+                    let nums = selectedCell.text().split("");
+                    let idx = nums.indexOf(e.key);
+                    if (idx > -1) {
+                        nums.splice(idx, 1);
+                    } else {
+                        nums.push(num);
+                    }
+                    nums.sort();
+                    selectedCell.text(nums.join(""));
+                }
+                exportDefinition();
+            }
+            function exportDefinition() {
+                let values = {};
+                let assoc = {};
+                $("td").each(function () {
+                    values[this.id] = this.innerHTML;
+                    assoc[this.id] = Array.from(associations[this.id]);
+                });
+                let gridDef = JSON.stringify({ values: values, associations: assoc });
+                $("#txtGridDefinition").val(gridDef);
+                window.localStorage.setItem("origamiGridDefinition", gridDef);
+            }
+            function importDefinition() {
+                let gridDef = JSON.parse($("#txtGridDefinition").val());
+                $("td").each(function () {
+                    this.innerHTML = gridDef.values[this.id];
+                    for (var associatedCellID of gridDef.associations[this.id]) {
+                        addAssoc(this.id, associatedCellID);
+                    }
+                });
+            }
+
+            let gridDef = window.localStorage.getItem("origamiGridDefinition");
+            if (gridDef) {
+                $("#txtGridDefinition").val(gridDef);
+                importDefinition();
+            }
+
+            $("#btnImport").click(function () {
+                importDefinition();
+            });
+        });
+
+    </script>
+    <style>
+        td {
+            /*border: solid 1px #000;*/
+            width: 55px;
+            height: 57px;
+            /*min-width: 54px;
+            min-height: 56px;
+            max-width: 54px;
+            max-height: 56px;*/
+            text-align: center;
+        }
+
+        .highlighted {
+            background-color: rgba(255, 216, 0,.3);
+        }
+
+        .selected {
+            background-color: rgba(255, 100, 0,.3);
+        }
+
+
+        #origamiTable {
+            /*background-image: url("images/seagullorigami.png");*/
+            background-image: url("https://6883085f-a-62cb3a1a-s-sites.googlegroups.com/site/bencejoful/Home/seagullorigami.png");
+            border-spacing: 0px;
+            background-repeat: no-repeat;
+            border-collapse: collapse;
+        }
+    </style>
+</head>
+<body>
+    <table id="origamiTable"></table>
+    <textarea id="txtGridDefinition" style="width:100%;margin-top:20px;vertical-align:bottom"></textarea>
+    <input id="btnImport" type="button" value="Import" />
+
+</body>
+</html>
