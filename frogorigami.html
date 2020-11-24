@@ -1,0 +1,244 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Origami</title>
+    <!--<script type="text/javascript" src="js/reference/jquery-latest.js"></script>-->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"
+            integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="
+            crossorigin="anonymous"></script>
+
+    <script type="text/javascript">
+        'use strict';
+        $(document).ready(function () {
+
+            var selectedCellID = "";
+            var associations = {};
+            function addAssoc(cellID, cellID2) {
+                associations[cellID].add(cellID2);
+            }
+            function removeAssoc(cellID, cellID2) {
+                associations[cellID].delete(cellID2);
+                associations[cellID2].delete(cellID);
+            }
+            function getAssoc(cellID) {
+                let allAssoc = [];
+                if (cellID) {
+                    for (var assoc of associations[cellID]) {
+                        allAssoc.push(assoc);
+                    }
+                    $("td").each(function () {
+                        if (associations[this.id].has(cellID)) {
+                            allAssoc.push(this.id);
+                        }
+                    });
+                }
+                return allAssoc;
+            }
+
+            //start up each cell's associations.
+            //let givens = '411411,141111,414114,111411,141141,411414';
+            let givens = '114111,111141,414141,111441,144414,111141';
+            let table = $("#origamiTable");
+            let rowID = 0;
+            for (let row of givens.split(",")) {
+                rowID++;
+                let tr1 = $("<tr>");
+                let tr2 = $("<tr>");
+                table.append(tr1);
+                table.append(tr2);
+                let colID = 0;
+                for (let cell of row.split("")) {
+                    colID++;
+                    if (cell == 4) {
+                        tr1.append("<td id='r" + rowID.toString() + "c" + colID.toString() + "a'>");
+                        tr1.append("<td id='r" + rowID.toString() + "c" + colID.toString() + "b'>");
+                        tr2.append("<td id='r" + rowID.toString() + "c" + colID.toString() + "c'>");
+                        tr2.append("<td id='r" + rowID.toString() + "c" + colID.toString() + "d'>");
+                    } else {
+                        tr1.append("<td colspan=2 rowspan=2 id='r" + rowID.toString() + "c" + colID.toString() + "'>");
+                    }
+                }
+            }
+            function resetAssoc() {
+                associations = {};
+                $("td").each(function () {
+                    associations[this.id] = new Set();
+                });
+
+            }
+            resetAssoc();
+            $("td").on("click", function () {
+                if (event.ctrlKey) {
+                    if ($(this).hasClass("highlighted")) {
+                        removeAssoc(selectedCellID, this.id);
+                    } else {
+                        addAssoc(selectedCellID, this.id);
+                    }
+                    registerBoardChange();
+                    exportDefinition();
+                } else {
+                    selectedCellID = this.id;
+                    $(".selected").removeClass("selected");
+                    $(this).addClass("selected");
+                }
+                resetHighlights();
+            });
+
+            function resetHighlights() {
+                $(".highlighted").removeClass("highlighted");
+                for (let cellID of getAssoc(selectedCellID)) {
+                    $("#" + cellID).addClass("highlighted");
+                }
+            }
+
+            document.body.onkeydown = function (e) {
+                let num = Number(e.key);
+                if (Number.isInteger(num)) {
+                    let selectedCell = $("#" + selectedCellID);
+                    let nums = selectedCell.text().split("");
+                    let idx = nums.indexOf(e.key);
+                    if (idx > -1) {
+                        nums.splice(idx, 1);
+                    } else {
+                        nums.push(num);
+                    }
+                    nums.sort();
+                    selectedCell.text(nums.join(""));
+                    registerBoardChange();
+                    exportDefinition();
+                }
+
+                if (e.key == 'z' && e.ctrlKey) {
+                    undoBoardChange();
+                } else if (e.key == 'y' && e.ctrlKey) {
+                    //redo
+                    redoBoardChange();
+                }
+            }
+            var undoboards = [];//used for undo
+            var redoboards = [];//used for redo
+
+            function getBoardJSON() {
+                return $("#txtGridDefinition").val();
+            }
+            function registerBoardChange(boardJSON) {
+                undoboards.push(boardJSON || getBoardJSON());
+                redoboards = [];
+            }
+            function undoBoardChange(numTimes) {
+                numTimes = numTimes || 1;
+                if (undoboards.length > 0 && undoboards.length < numTimes) {
+                    numTimes = undoboards.length;
+                }
+                if (undoboards.length >= numTimes) {
+                    redoboards.push(getBoardJSON());
+                    for (var i = 0; i < numTimes - 1; i++) {
+                        redoboards.push(undoboards.pop());
+                    }
+                    doBoardChange(undoboards.pop());
+                }
+            }
+
+            function redoBoardChange(numTimes) {
+                numTimes = numTimes || 1;
+                if (redoboards.length > 0 && redoboards.length < numTimes) {
+                    numTimes = redoboards.length;
+                }
+
+                if (redoboards.length) {
+                    undoboards.push(getBoardJSON());
+                    for (var i = 0; i < numTimes - 1; i++) {
+                        undoboards.push(redoboards.pop());
+                    }
+                    doBoardChange(redoboards.pop());
+                }
+            }
+            function doBoardChange(boardJSON) {
+                $("#txtGridDefinition").val(boardJSON);
+                importDefinition();
+            }
+            function exportDefinition() {
+                let values = {};
+                let assoc = {};
+                $("td").each(function () {
+                    values[this.id] = this.innerHTML;
+                    assoc[this.id] = Array.from(associations[this.id]);
+                });
+                let gridDef = JSON.stringify({ values: values, associations: assoc });
+                $("#txtGridDefinition").val(gridDef);
+                window.localStorage.setItem("origamiGridDefinition", gridDef);
+            }
+            function importDefinition() {
+                let gridDef = JSON.parse($("#txtGridDefinition").val());
+                resetAssoc();
+                $("td").each(function () {
+                    this.innerHTML = gridDef.values[this.id];
+                    for (var associatedCellID of gridDef.associations[this.id]) {
+                        addAssoc(this.id, associatedCellID);
+                    }
+                });
+                resetHighlights();
+            }
+
+            let gridDef = window.localStorage.getItem("origamiGridDefinition");
+            if (gridDef) {
+                $("#txtGridDefinition").val(gridDef);
+                importDefinition();
+            }
+
+            $("#btnImport").click(function () {
+                importDefinition();
+            });
+            $("#btnClear").click(function () {
+                if (confirm("Really clear all highlighting and numbers?")) {
+                    resetAssoc();
+                    $("td").each(function () {
+                        this.innerHTML = "";
+                    });
+                    registerBoardChange();
+                    exportDefinition();
+                    resetHighlights();
+                }
+            });
+
+        });
+
+    </script>
+    <style>
+        td {
+            /*border: solid 1px #000;*/
+            width: 45px;
+            height: 47px;
+            /*min-width: 54px;
+            min-height: 56px;
+            max-width: 54px;
+            max-height: 56px;*/
+            text-align: center;
+        }
+
+        .highlighted {
+            background-color: rgba(255, 216, 0,.3);
+        }
+
+        .selected {
+            background-color: rgba(255, 100, 0,.3);
+        }
+
+
+        #origamiTable {
+            background-image: url("frogorigami.png");
+            /*background-image: url("https://6883085f-a-62cb3a1a-s-sites.googlegroups.com/site/bencejoful/Home/seagullorigami.png");*/
+            border-spacing: 0px;
+            background-repeat: no-repeat;
+            border-collapse: collapse;
+        }
+    </style>
+</head>
+<body>
+    <table id="origamiTable"></table>
+    <textarea id="txtGridDefinition" style="width:100%;margin-top:20px;vertical-align:bottom"></textarea>
+    <input id="btnImport" type="button" value="Import" />
+    <input id="btnClear" type="button" value="Clear" />
+
+</body>
+</html>
