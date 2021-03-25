@@ -2858,7 +2858,7 @@ $(document).ready(function () {
         color: "lightgray",
         //shortcutKey: "^up",
         click: function () {
-            window.open("sonari.html?boardDef="+escape(getBoardDef()));
+            window.open("Sonari.html?boardDef="+escape(getBoardDef()));
         },
         draw: "🖫",
     });
