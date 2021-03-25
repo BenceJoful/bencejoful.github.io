@@ -4,7 +4,9 @@
  *      click on colors to toggle those rings on/off.  
  *      hide ring when it fulfills the clue: either correct number of shaded cells or (for 0 clues) all cells marked unshaded.
  * fix solve starbattle to use shaded/unshaded and not numbers.
- * export/import via url.
+ * What do I really want?  Set a puzzle to find out.  
+ * Solve starbattle.
+ * 
 */
 
 'use strict';
@@ -219,7 +221,11 @@ $(document).ready(function () {
                 var coords = drawBlock(x, y, hexType.color);
                 var displayValue = "";
                 if (cell.number) {
-                    displayValue = cell.number.toString();
+                    if (cell.number == 7) {
+                        displayValue = " 0";
+                    } else {
+                        displayValue = " " + cell.number.toString();
+                    }
                     if (boardDisplay[x][y]) {
                         displayValue += ": " + boardDisplay[x][y];
                     }
@@ -264,6 +270,7 @@ $(document).ready(function () {
         }
 
         //draw rings
+        ctx.globalAlpha = .5
         for (let hexTypeID = 0; hexTypeID < hexTypes.length; hexTypeID++) {
             let hexType = hexTypes[hexTypeID];
             if (hexType.radius) {
@@ -274,10 +281,11 @@ $(document).ready(function () {
                         if (cell && cell.hexTypeID == hexTypeID) {
 
                             ctx.strokeStyle = hexType.color;
-                            ctx.lineWidth = 2;
+
+                            ctx.lineWidth = 8;
                             ctx.beginPath();
 
-                            for (let dir = 0; dir < 7; dir++) {
+                            for (let dir = 0; dir < 8; dir++) {
                                 let ringCoords = [cell.x, cell.y];
                                 for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
                                     ringCoords = getNeighborHexCoords(ringCoords, dir % 6);
@@ -292,6 +300,7 @@ $(document).ready(function () {
             }
         }
         ctx.lineWidth = 1;
+        ctx.globalAlpha = 1;
         ctx.strokeStyle = 'black';
         for (let [s, x, y, c] of drawStrings) {
             drawString(s, x, y, c);
@@ -661,7 +670,7 @@ $(document).ready(function () {
 
                             var hexType = hexTypes[hexTypeID];
                             if (hexType.color == "Plum") {//the numbers.
-                                setBoardNumber([x, y], Number(hexType.symbol))
+                                setBoardNumber([x, y], (hexType.symbol == "0" ? 7 : Number(hexType.symbol)))
                             }
                             else {
                                 //toggle colors on/off if it's the same clue color.
@@ -825,7 +834,7 @@ $(document).ready(function () {
     function getNumStarsInGroup(flatBoard, coordsList) {
         let seenStars = 0;
         for (let coords of coordsList) {
-            if (flatBoard[coords[0]][coords[1]].number == 2) {
+            if (flatBoard[coords[0]][coords[1]].hexTypeID == 3) {
                 seenStars++;
             }
         }
@@ -1166,10 +1175,11 @@ $(document).ready(function () {
         "Unshaded": "Unshaded",
         "Shaded": "Shaded",
         "Red": "Red",
-        "Blue": "Blue",
+        "Orange": "Orange",
         "Yellow": "Yellow",
         "Green": "Lime",
         "DarkGreen": "Green",
+        "Blue": "Blue",
         "Purple": "Purple",
         "Zero": "0",
         "One": "1",
@@ -1178,9 +1188,6 @@ $(document).ready(function () {
         "Four": "4",
         "Five": "5",
         "Six": "6",
-        "Seven": "7",
-        "Eight": "8",
-        "Nine": "9",
     };
     var hexTypes = [
         {
@@ -1205,9 +1212,9 @@ $(document).ready(function () {
             symbol: "",//"➕",
             radius: 0,
         }, {
-            name: hexTypeNames.Blue,
-            color: "dodgerblue",
-            symbol: "",//"⛨",
+            name: hexTypeNames.Orange,
+            color: "orange",
+            symbol: "",//"➕",
             radius: 0,
         }, {
             name: hexTypeNames.Yellow,
@@ -1223,6 +1230,11 @@ $(document).ready(function () {
             name: hexTypeNames.DarkGreen,
             color: "Green",
             symbol: "",//"★",
+            radius: 0,
+        }, {
+            name: hexTypeNames.Blue,
+            color: "dodgerblue",
+            symbol: "",//"⛨",
             radius: 0,
         }, {
             name: hexTypeNames.Purple,
@@ -1271,24 +1283,6 @@ $(document).ready(function () {
             color: "Plum",
             symbol: "6",
             shortcutKey: 'key_6',
-        },
-        {
-            name: hexTypeNames.Seven,
-            color: "Plum",
-            symbol: "7",
-            shortcutKey: 'key_7',
-        },
-        {
-            name: hexTypeNames.Eight,
-            color: "Plum",
-            symbol: "8",
-            shortcutKey: 'key_8',
-        },
-        {
-            name: hexTypeNames.Nine,
-            color: "Plum",
-            symbol: "9",
-            shortcutKey: 'key_9',
         },
     ];
     var hexTypeMap = {};
@@ -2298,37 +2292,8 @@ $(document).ready(function () {
     var toolMargin = 5;
     var toolWidth = 30;
     var toolHeight = 30;
-    var toolColumns = 5;
+    var toolColumns = 7;
     var toolBoxLeft = toolMargin;//canvasW - .5 - (toolWidth + toolMargin) * toolColumns;
-
-    //create gradient for first tool, the solving tool.
-    var solvingGradient = ctx.createLinearGradient(toolBoxLeft,
-        toolMargin - .5,
-        toolBoxLeft + toolWidth,
-        toolMargin - .5 + toolHeight);
-
-    solvingGradient.addColorStop(.3, "#DEB887");
-    solvingGradient.addColorStop(0.35, "#8b4513");
-    solvingGradient.addColorStop(0.65, "#8b4513");
-    solvingGradient.addColorStop(.7, "#FFFFFF");
-
-    tools.push({
-        name: "",//"Draw: Solving (s)",
-        color: solvingGradient,
-        symbol: "",//"~",
-        shortcutKey: "+`",
-        click: function () {
-            currentHexType = -1;
-            drawBoard();
-        },
-        draw: function () {
-            if (currentHexType == -1) {
-                drawToolShadow(this);
-            }
-            drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
-        }
-    });
-
 
     for (var i = 1; i < hexTypes.length; i++) {
         var shortcutKey = "key_" + hexTypes[i].name;
@@ -2355,6 +2320,11 @@ $(document).ready(function () {
                 }
             });
     }
+
+    for (let placeholderI = 0; placeholderI < 4; placeholderI++) {
+        tools.splice(3, 0, { name: "", color: "", click: function () { }, draw: function () { }, });
+    }
+
     //for (var i = 1; i <= 9; i++) {
     //    tools.push({
     //        name: "Number " + i + " (" + i.toString() + ")",
@@ -2374,16 +2344,20 @@ $(document).ready(function () {
     //    });
     //}
     tools.push({
-        name: "Clear board (Delete)",
+        name: "Clear shading",
         color: "lightgray",
         shortcutKey: "delete",
         click: function (ctrlKey) {
-            if (confirm("This will clear the entire board, including all clues.  Continue?")) {
-
-                registerBoardChange();
-                resetBoard();
-                drawBoard();
+            registerBoardChange();
+            for (var x = 0; x < COLS; ++x) {
+                for (var y = 0; y < ROWS; ++y) {
+                    let cell = getBoardCell([x, y]);
+                    if (cell && cell.hexTypeID > 0 && cell.hexTypeID <= 3) {
+                        setBoardHexType([cell.x, cell.y], 1);
+                    }
+                }
             }
+            drawBoard();
         },
         draw: "X",
     });
@@ -2405,7 +2379,7 @@ $(document).ready(function () {
     });
 
     tools.push({
-        name: "Auto-shade",
+        name: "Auto-unshade",
         color: "lightgray",
         click: function () {
             registerBoardChange();
@@ -2482,321 +2456,329 @@ $(document).ready(function () {
     //        }
     //    }
     //});
+    tools.push({
+        name: "Solve for shaded cells (Ctrl+click to check all possible solutions)",
+        color: "lightgray",
+        //shortcutKey: "w",
+        click: function (ctrlKey, shiftKey) {
+            //populate all possibilities on the grid as display data.
 
-    //tools.push({
-    //    name: "Solve for shaded cells",
-    //    color: "lightgray",
-    //    shortcutKey: "w",
-    //    click: function (ctrlKey, shiftKey) {
-    //        //populate all possibilities on the grid as display data.
+            //if (event.key == 'w') shiftKey = true;
 
-    //        if (event.key == 'w') shiftKey = true;
+            registerBoardChange();
+            console.time("prep");
 
-    //        registerBoardChange();
-    //        console.time("prep");
+            var starCount = 1;//prompt("# of stars per line/region");
+            if (starCount == "") return;
+            starCount = Number(starCount);
+            while (!Number.isInteger(starCount)) {
+                starCount = prompt("# of stars per line/region (Must be a number):");
+                if (starCount == "") return;
+                starCount = Number(starCount);
+            }
 
-    //        var starCount = prompt("# of stars per line/region");
-    //        if (starCount == "") return;
-    //        starCount = Number(starCount);
-    //        while (!Number.isInteger(starCount)) {
-    //            starCount = prompt("# of stars per line/region (Must be a number):");
-    //            if (starCount == "") return;
-    //            starCount = Number(starCount);
-    //        }
+            //let starCount = 2;
 
-    //        //let starCount = 2;
+            let verifyCount = 0;
+            let setCount = 0;
+            let revertCount = 0;
+            let finalCheckCount = 0;
+            let solBoardCount = 0;
+            let maxSolutionBoards = 50;
 
-    //        let verifyCount = 0;
-    //        let setCount = 0;
-    //        let revertCount = 0;
-    //        let finalCheckCount = 0;
-    //        let solBoardCount = 0;
-    //        let maxSolutionBoards = 50;
+            let finalCheckGroups = [];
 
-    //        let finalCheckGroups = [];
+            var solutionBoards = [];
 
-    //        var solutionBoards = [];
-    //        function starBattleSolver(flatBoard, cellList, startingIdx) {
-    //            //for each cell, 
-    //            //if cell has no number
-    //            //check if it's valid to set cell to 2 (ON).  AKA check for other cells on the axes with value 2.
-    //            //if it's valid, set cell = 2.  else set to 1 and move on.
-    //            //at the end, check if it's valid.  Should be able to just go through columns to check, as by definition others will be correct.  If not, return false and recurse.
-    //            //recurse: if it's good (aka all columns have exactly 2 stars), return true;
-    //            //else, set value to 1, then go on to the next X.
-    //            for (let i = startingIdx || 0, len = cellList.length; i < len; i++) {
-    //                var cell = cellList[i];
-    //                if (cell.hexTypeID > 0 && cell.number == 0) {
-    //                    verifyCount++;
+            let processingStartTime = Date.now();
+            let timeLimitExceeded = false;
 
-    //                    let isPossibleStar = true;
-    //                    //let groupAvailability = [];
-    //                    for (let group of cell.sudokuCellGroups) {
-    //                        //let availability = group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords);
-    //                        //  groupAvailability.push(availability);
-    //                        //if (availability < 1) {
-    //                        if (group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords) < 1) {
+            function starBattleSolver(flatBoard, cellList, startingIdx) {
+                //for each cell, 
+                //if cell has no number
+                //check if it's valid to set cell to 2 (ON).  AKA check for other cells on the axes with value 2.
+                //if it's valid, set cell = 2.  else set to 1 and move on.
+                //at the end, check if it's valid.  Should be able to just go through columns to check, as by definition others will be correct.  If not, return false and recurse.
+                //recurse: if it's good (aka all columns have exactly 2 stars), return true;
+                //else, set value to 1, then go on to the next X.
+                for (let i = startingIdx || 0, len = cellList.length; i < len; i++) {
+                    var cell = cellList[i];
+                    if (cell.hexTypeID == 1) {
+                        verifyCount++;
 
-    //                            isPossibleStar = false;
-    //                            break;
-    //                        }
-    //                    }
-    //                    if (isPossibleStar) {
-    //                        cell.number = 2;
+                        let isPossibleStar = true;
+                        //let groupAvailability = [];
+                        for (let group of cell.sudokuCellGroups) {
+                            //let availability = group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords);
+                            //  groupAvailability.push(availability);
+                            //if (availability < 1) {
+                            if (group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords) < 1) {
 
-    //                        setCount++;
-    //                        if (starBattleSolver(flatBoard, cellList, i + 1)) {
-    //                            return true;
-    //                        } else {
-    //                            cell.number = 0;
+                                isPossibleStar = false;
+                                break;
+                            }
+                        }
+                        if (isPossibleStar) {
+                            cell.hexTypeID = 3;
 
-    //                            revertCount++;
-    //                            //if (shiftKey) {
-    //                            //    solutionBoards.push(JSON.stringify(flatBoard));
-    //                            //    return true;
-    //                            //}
-    //                        }
-    //                        //} else {
-    //                        //    cell.number = 1;
-    //                    }
-    //                }
-    //            }
+                            setCount++;
+                            if (starBattleSolver(flatBoard, cellList, i + 1)) {
+                                return true;
+                            } else {
+                                cell.hexTypeID = 1;
 
-    //            //todo: better final check, showing that every line in each direction do have exactly starCount stars.
-    //            //do final check that every star sees exactly N - 1 other stars.Surely there's a better way to do this, but oh well.
-    //            finalCheckCount++;
-    //            for (let group of finalCheckGroups) {
-    //                let hasCells = false;
-    //                let colStarCount = 0;
-    //                for (let cell of group) {
-    //                    //if there are any cells, there must be starCount stars.
-    //                    if (cell.hexTypeID > 0) {
-    //                        hasCells = true;
-    //                        if (cell.number == 2) {
-    //                            colStarCount++;
-    //                        }
-    //                    }
-    //                }
-    //                if (hasCells && colStarCount != starCount) {
-    //                    return false;
-    //                }
-    //            }
+                                revertCount++;
+                                if (Date.now() - processingStartTime > 15000) {
+                                    if (timeLimitExceeded == false) {
+                                        alert("15 second time limit exceeded.  Try shading a few cells to get started.");
+                                        timeLimitExceeded = true;
+                                    }
+                                    return false;
+                                }
+                                //if (shiftKey) {
+                                //    solutionBoards.push(JSON.stringify(flatBoard));
+                                //    return true;
+                                //}
+                            }
+                            //} else {
+                            //    cell.number = 1;
+                        }
+                    }
+                }
 
-    //            //for (let i = 0, len = cellList.length; i < len; i++) {
-    //            //    var cell = cellList[i];
-    //            //    if (cell.hexTypeID > 0 && cell.number == 2) {
-    //            //        for (let group of cell.sudokuCellGroups) {
-    //            //            if (getNumStarsInGroup(flatBoard, group.cellCoords) + 1 != group.totalValue) {
-    //            //                return false;
-    //            //            }
-    //            //        }
-    //            //    }
-    //            //}
+                //todo: better final check, showing that every line in each direction do have exactly starCount stars.
+                //do final check that every star sees exactly N - 1 other stars.Surely there's a better way to do this, but oh well.
+                finalCheckCount++;
+                for (let group of finalCheckGroups) {
+                    let hasCells = false;
+                    let colStarCount = 0;
+                    for (let cell of group) {
+                        //if there are any cells, there must be starCount stars.
+                        if (cell.hexTypeID > 0) {
+                            hasCells = true;
+                            if (cell.hexTypeID == 3) {
+                                colStarCount++;
+                            }
+                        }
+                    }
+                    if (hasCells && colStarCount != starCount) {
+                        return false;
+                    }
+                }
 
-    //            solBoardCount++;
-    //            solutionBoards.push(JSON.stringify(flatBoard));
-    //            if (!ctrlKey) {
-    //                return true;
-    //            } else {
-    //                if (solutionBoards.length >= maxSolutionBoards) {
-    //                    //dedupe boards
-    //                    solutionBoards = dedupeArray(solutionBoards);
+                //for (let i = 0, len = cellList.length; i < len; i++) {
+                //    var cell = cellList[i];
+                //    if (cell.hexTypeID > 0 && cell.number == 2) {
+                //        for (let group of cell.sudokuCellGroups) {
+                //            if (getNumStarsInGroup(flatBoard, group.cellCoords) + 1 != group.totalValue) {
+                //                return false;
+                //            }
+                //        }
+                //    }
+                //}
 
-    //                    //truly unique
-    //                    if (solutionBoards.length >= maxSolutionBoards) {
-    //                        return true;
-    //                    }
-    //                }
-    //            }
-    //        }
+                solBoardCount++;
+                solutionBoards.push(JSON.stringify(flatBoard));
+                if (!ctrlKey) {
+                    return true;
+                } else {
+                    if (solutionBoards.length >= maxSolutionBoards) {
+                        //dedupe boards
+                        solutionBoards = dedupeArray(solutionBoards);
 
-    //        setStarBattleCellGroups(starCount);
+                        //truly unique
+                        if (solutionBoards.length >= maxSolutionBoards) {
+                            return true;
+                        }
+                    }
+                }
+            }
 
-    //        var flatBoard = getBoardCopy();
-    //        let cellList = [];
-    //        for (let i = 0; i < COLS; i++) {
-    //            let colGroup = [];
-    //            for (let j = 0; j < ROWS; j++) {
-    //                let cell = flatBoard[i][j];
-    //                if (cell.hexTypeID > 0) {
-    //                    cellList.push(cell);
-    //                    colGroup.push(cell);
-    //                }
-    //            }
-    //            if (colGroup.length) {
-    //                finalCheckGroups.push(colGroup);
-    //            }
-    //        }
-    //        //northwest to southeast, part 1.
-    //        for (let i = 1; i < COLS; i++) {
-    //            let colGroup = [];
-    //            let coords = [i, 0];
-    //            while (inBoard(coords[0], coords[1])) {
-    //                let cell = flatBoard[coords[0]][coords[1]];
-    //                if (cell.hexTypeID > 0) {
-    //                    colGroup.push(cell);
-    //                }
-    //                coords = getNeighborHexCoords(coords, 0);
-    //            }
-    //            if (colGroup.length) {
-    //                finalCheckGroups.push(colGroup);
-    //            }
-    //        }
-    //        //northwest to southeast, part 2.
-    //        for (let i = 1; i < ROWS; i++) {
-    //            let colGroup = [];
-    //            let coords = [0, i];
-    //            while (inBoard(coords[0], coords[1])) {
-    //                let cell = flatBoard[coords[0]][coords[1]];
-    //                if (cell.hexTypeID > 0) {
-    //                    colGroup.push(cell);
-    //                }
-    //                coords = getNeighborHexCoords(coords, 0);
-    //            }
-    //            if (colGroup.length) {
-    //                finalCheckGroups.push(colGroup);
-    //            }
-    //        }
-    //        //southwest to northeast, part 1.
-    //        for (let i = 1; i < COLS; i++) {
-    //            let colGroup = [];
-    //            let coords = [i, ROWS - 1];
-    //            while (inBoard(coords[0], coords[1])) {
-    //                let cell = flatBoard[coords[0]][coords[1]];
-    //                if (cell.hexTypeID > 0) {
-    //                    colGroup.push(cell);
-    //                }
-    //                coords = getNeighborHexCoords(coords, 1);
-    //            }
-    //            if (colGroup.length) {
-    //                finalCheckGroups.push(colGroup);
-    //            }
-    //        }
-    //        //southwest to northeast, part 2.
-    //        for (let i = 1; i < ROWS; i++) {
-    //            let colGroup = [];
-    //            let coords = [0, i];
-    //            while (inBoard(coords[0], coords[1])) {
-    //                let cell = flatBoard[coords[0]][coords[1]];
-    //                if (cell.hexTypeID > 0) {
-    //                    colGroup.push(cell);
-    //                }
-    //                coords = getNeighborHexCoords(coords, 1);
-    //            }
-    //            if (colGroup.length) {
-    //                finalCheckGroups.push(colGroup);
-    //            }
-    //        }
+            setStarBattleCellGroups(starCount);
 
-    //        //todo: check northeast/southwest and northwest/southeast lines.
+            var flatBoard = getBoardCopy();
+            let cellList = [];
+            for (let i = 0; i < COLS; i++) {
+                let colGroup = [];
+                for (let j = 0; j < ROWS; j++) {
+                    let cell = flatBoard[i][j];
+                    if (cell.hexTypeID > 0) {
+                        cellList.push(cell);
+                        colGroup.push(cell);
+                    }
+                }
+                if (colGroup.length) {
+                    finalCheckGroups.push(colGroup);
+                }
+            }
+            //northwest to southeast, part 1.
+            for (let i = 1; i < COLS; i++) {
+                let colGroup = [];
+                let coords = [i, 0];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push(cell);
+                    }
+                    coords = getNeighborHexCoords(coords, 0);
+                }
+                if (colGroup.length) {
+                    finalCheckGroups.push(colGroup);
+                }
+            }
+            //northwest to southeast, part 2.
+            for (let i = 1; i < ROWS; i++) {
+                let colGroup = [];
+                let coords = [0, i];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push(cell);
+                    }
+                    coords = getNeighborHexCoords(coords, 0);
+                }
+                if (colGroup.length) {
+                    finalCheckGroups.push(colGroup);
+                }
+            }
+            //southwest to northeast, part 1.
+            for (let i = 1; i < COLS; i++) {
+                let colGroup = [];
+                let coords = [i, ROWS - 1];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push(cell);
+                    }
+                    coords = getNeighborHexCoords(coords, 1);
+                }
+                if (colGroup.length) {
+                    finalCheckGroups.push(colGroup);
+                }
+            }
+            //southwest to northeast, part 2.
+            for (let i = 1; i < ROWS; i++) {
+                let colGroup = [];
+                let coords = [0, i];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push(cell);
+                    }
+                    coords = getNeighborHexCoords(coords, 1);
+                }
+                if (colGroup.length) {
+                    finalCheckGroups.push(colGroup);
+                }
+            }
 
-    //        //naively turn off cells that are already fulfilled.
-    //        for (let group of finalCheckGroups) {
-    //            let colStarCount = 0;
-    //            for (let cell of group) {
-    //                //if there are any cells, there must be starCount stars.
-    //                if (cell.hexTypeID > 0) {
-    //                    if (cell.number == 2) {
-    //                        colStarCount++;
-    //                        let c = getBoardCell([cell.x, cell.y]);
-    //                        c.hexTypeID = 2;
-    //                        for (let ncoords of getAllNeighborHexCoords([cell.x, cell.y])) {
-    //                            let c2 = getBoardCell(ncoords);
-    //                            if (c2 && c2.hexTypeID > 0) {
-    //                                c2.number = 1;
-    //                                c2.hexTypeID = 1;
-    //                            }
-    //                        }
-    //                    }
-    //                }
-    //            }
-    //            if (colStarCount == starCount) {
-    //                for (let cell of group) {
-    //                    //if there are any cells, there must be starCount stars.
-    //                    if (cell.hexTypeID > 0 && !cell.number) {
-    //                        registerBoardChange();
-    //                        let c = getBoardCell([cell.x, cell.y]);
-    //                        c.number = 1;
-    //                        c.hexTypeID = 1;
-    //                    }
-    //                }
-    //            }
-    //        }
+            //todo maybe: check northeast/southwest and northwest/southeast lines.
 
-    //        if (!shiftKey) {
+            //naively turn off cells that are already fulfilled.
+            for (let group of finalCheckGroups) {
+                let colStarCount = 0;
+                for (let cell of group) {
+                    //if there are any cells, there must be starCount stars.
+                    if (cell.hexTypeID > 0) {
+                        if (cell.hexTypeID == 3) {
+                            colStarCount++;
+                            for (let ncoords of getAllNeighborHexCoords([cell.x, cell.y])) {
+                                let c2 = getBoardCell(ncoords);
+                                if (c2 && c2.hexTypeID > 0) {
+                                    c2.hexTypeID = 2;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (colStarCount == starCount) {
+                    for (let cell of group) {
+                        //if there are any cells, there must be starCount stars.
+                        if (cell.hexTypeID == 1) {
+                            registerBoardChange();
+                            let c = getBoardCell([cell.x, cell.y]);
+                            c.hexTypeID = 2;
+                        }
+                    }
+                }
+            }
 
-    //            //shuffleArray(cellList);
 
-    //            console.timeEnd("prep");
-    //            console.time("solve");
-    //            starBattleSolver(flatBoard, cellList);
-    //            console.timeEnd("solve");
-    //            console.time("update");
+            //shuffleArray(cellList);
 
-    //            //todo: reduce possible solutionboards - for some reason it's allowing duplicates.
-    //            //let jsonBoards = [];
-    //            //for (var sboard in solutionboards) {
-    //            //    jsonBoards = JSON.stringify(sboard);
-    //            //}
-    //            //solutionBoards = dedupeArray(jsonBoards);
+            console.timeEnd("prep");
+            console.time("solve");
+            starBattleSolver(flatBoard, cellList);
+            if (timeLimitExceeded) {
+                return;
+            }
+            console.timeEnd("solve");
+            console.time("update");
 
-    //            let unpackedSolutionBoards = [];
-    //            for (var solBoard of solutionBoards) {
-    //                unpackedSolutionBoards.push(JSON.parse(solBoard));
-    //            }
+            //todo: reduce possible solutionboards - for some reason it's allowing duplicates.
+            //let jsonBoards = [];
+            //for (var sboard in solutionboards) {
+            //    jsonBoards = JSON.stringify(sboard);
+            //}
+            //solutionBoards = dedupeArray(jsonBoards);
 
-    //            if (solutionBoards.length && solutionBoards.length != maxSolutionBoards) {
-    //                for (let i = 0; i < COLS; i++) {
-    //                    for (let j = 0; j < ROWS; j++) {
-    //                        var cell = getBoardCell([i, j]);
-    //                        if (cell && !cell.number) {
-    //                            //get the solution number, if all solution boards agree.
-    //                            //todo maybe: display other possibilies on boardDisplay.
-    //                            var possibleNumbers = new Set();
-    //                            for (let solBoard of unpackedSolutionBoards) {
-    //                                possibleNumbers.add(solBoard[i][j].number);
-    //                            }
-    //                            if (possibleNumbers.size == 1) {
-    //                                cell.number = Array.from(possibleNumbers)[0];
-    //                                if (cell.number == 0) {
-    //                                    boardDisplay[i][j] = " -";
-    //                                }
-    //                            } else {
-    //                                boardDisplay[i][j] = "";
-    //                            }
-    //                            if (cell.number == 1) {
-    //                                //cell.number = 0;
-    //                            }
-    //                        }
-    //                    }
-    //                }
-    //                for (let i = 0; i < COLS; i++) {
-    //                    for (let j = 0; j < ROWS; j++) {
-    //                        var cell = getBoardCell([i, j]);
-    //                        if (cell && cell.number == 2) {
-    //                            cell.hexTypeID = 1;//set to OFF for SLICY
-    //                        }
-    //                    }
-    //                }
-    //            }
+            let unpackedSolutionBoards = [];
+            for (var solBoard of solutionBoards) {
+                unpackedSolutionBoards.push(JSON.parse(solBoard));
+            }
 
-    //            console.timeEnd("update");
+            if (solutionBoards.length && solutionBoards.length != maxSolutionBoards) {
+                for (let i = 0; i < COLS; i++) {
+                    for (let j = 0; j < ROWS; j++) {
+                        var cell = getBoardCell([i, j]);
+                        if (cell && cell.hexTypeID > 0 && cell.hexTypeID < 3) {
+                            var isAlwaysShaded = true;
+                            var isAlwaysUnshaded = true;
+                            for (let solBoard of unpackedSolutionBoards) {
+                                if (solBoard[i][j].hexTypeID == 3) {
+                                    isAlwaysUnshaded = false;
+                                } else {
+                                    isAlwaysShaded = false;
 
-    //            console.log("verifies:" + verifyCount);
-    //            console.log("sets:" + setCount);
-    //            console.log("reverts:" + revertCount);
-    //            console.log("final checks:" + finalCheckCount);
-    //            console.log("solution board count:" + solBoardCount);
+                                }
+                            }
+                            if (isAlwaysShaded) {
+                                setBoardHexType([i, j], 3);
+                            } else if (isAlwaysUnshaded) {
+                                setBoardHexType([i, j], 2);
+                            }
+                        }
+                    }
+                }
+            }
 
-    //            if (ctrlKey) {
-    //                console.log(solutionBoards.length + (solutionBoards.length == maxSolutionBoards ? "+" : "") + " solution(s)");
-    //            }
-    //        }
+            console.timeEnd("update");
 
-    //        drawBoard();
-    //    },
-    //    draw: "☆",
-    //});
+            console.log("verifies:" + verifyCount);
+            console.log("sets:" + setCount);
+            console.log("reverts:" + revertCount);
+            console.log("final checks:" + finalCheckCount);
+            solBoardCount = solutionBoards.length;
+            console.log("solution board count:" + solBoardCount);
+
+            if (ctrlKey) {
+                console.log(solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution(s)");
+                $("#log").val("This shaded cell layout has " + solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution" + (solBoardCount == 1 ? "" : "s"));
+            } else {
+                if (solBoardCount == 0) {
+                    $("#log").val("This shaded cell layout has 0 solutions");
+                } else if (solBoardCount == 1) {
+                    $("#log").val("This shaded cell layout has at least 1 solution");
+                } else {
+                    $("#log").val("This shaded cell layout has " + solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution" + (solBoardCount == 1 ? "" : "s"));
+                }
+
+            }
+
+            drawBoard();
+        },
+        draw: "✓",
+    });
 
     //tools.push({
     //    name: "Thermo",
@@ -2858,10 +2840,31 @@ $(document).ready(function () {
         color: "lightgray",
         //shortcutKey: "^up",
         click: function () {
-            window.open("Sonari.html?boardDef="+escape(getBoardDef()));
+            window.open("Sonari.html?boardDef=" + escape(getBoardDef()));
         },
         draw: "🖫",
     });
+
+    for (let placeholderI = 0; placeholderI < 9; placeholderI++) {
+        tools.push( { name: "", color: "", click: function () { }, draw: function () { }, });
+    }
+    let solvingTool = {
+        name: "Solve: click to shade/unshade and modify ring sizes",
+        color: solvingGradient,
+        symbol: "",//"~",
+        shortcutKey: "+`",
+        click: function () {
+            currentHexType = -1;
+            drawBoard();
+        },
+        draw: function () {
+            if (currentHexType == -1) {
+                drawToolShadow(this);
+            }
+            drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
+        }
+    }
+    tools.push(solvingTool);
 
     //layout tools in columnar grid.
     for (var i = 0; i < tools.length; i++) {
@@ -2871,6 +2874,18 @@ $(document).ready(function () {
         tool.height = toolHeight;
         tool.width = toolWidth;
     }
+
+    //create gradient for first tool, the solving tool.
+    var solvingGradient = ctx.createLinearGradient(solvingTool.x,
+        solvingTool.y,
+        solvingTool.x + solvingTool.width,
+        solvingTool.y + solvingTool.height);
+
+    solvingGradient.addColorStop(.3, "#DEB887");
+    solvingGradient.addColorStop(0.35, "#8b4513");
+    solvingGradient.addColorStop(0.65, "#8b4513");
+    solvingGradient.addColorStop(.7, "#FFFFFF");
+    solvingTool.color = solvingGradient;
 
     function promptDescription() {
         var d = "~";
