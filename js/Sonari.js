@@ -3,8 +3,12 @@
  *      hover over cells to highlight that cell's ring.  
  *      click on colors to toggle those rings on/off.  
  *      hide ring when it fulfills the clue: either correct number of shaded cells or (for 0 clues) all cells marked unshaded.
- * What do I really want?  Set a puzzle to find out.  
  * Answer check
+ * Mobile friendly
+ * button(?) to unlock setting mode.
+ * scale to board size.
+ * striping of rings.
+ * save ring radius to url.
 */
 
 'use strict';
@@ -268,37 +272,156 @@ $(document).ready(function () {
         }
 
         //draw rings
-        ctx.globalAlpha = .5
-        for (let hexTypeID = 0; hexTypeID < hexTypes.length; hexTypeID++) {
-            let hexType = hexTypes[hexTypeID];
-            if (hexType.radius) {
-                //get all cells of that radius and draw rings around them.
-                for (var x = 0; x < COLS; ++x) {
-                    for (var y = 0; y < ROWS; ++y) {
-                        var cell = getBoardCell([x, y]);
-                        if (cell && cell.hexTypeID == hexTypeID) {
+        //get all cells of that radius and draw rings around them.
+        //handle the line segments individually between cells, so we can do striping.
+        let ringLines = {};
+        for (let x = 0; x < COLS; ++x) {
+            for (let y = 0; y < ROWS; ++y) {
+                let cell = getBoardCell([x, y]);
+                if (cell) {
+                    let hexType = hexTypes[cell.hexTypeID];
+                    if (hexType.radius) {
+                        //let [centerX, centerY] = getHexCenter(cell.x, cell.y);
 
-                            ctx.strokeStyle = hexType.color;
-
-                            ctx.lineWidth = 8;
-                            ctx.beginPath();
-
-                            for (let dir = 0; dir < 8; dir++) {
-                                let ringCoords = [cell.x, cell.y];
-                                for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
-                                    ringCoords = getNeighborHexCoords(ringCoords, dir % 6);
+                        //start at southwest corner.
+                        let ringCoords = [cell.x, cell.y];
+                        for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
+                            ringCoords = getNeighborHexCoords(ringCoords, 4);
+                        }
+                        //travel around the ring radius steps in each direction.
+                        for (let dir = 0; dir < 6; dir++) {
+                            for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
+                                let ringLine = { x1: ringCoords[0], y1: ringCoords[1] };
+                                ringCoords = getNeighborHexCoords(ringCoords, dir);
+                                if (ringLine.x1 < ringCoords[0] || (ringLine.x1 == ringCoords[0] && ringLine.y1 < ringCoords[1])) {
+                                    ringLine.x2 = ringCoords[0];
+                                    ringLine.y2 = ringCoords[1];
+                                } else {
+                                    ringLine.x2 = ringLine.x1;
+                                    ringLine.y2 = ringLine.y1;
+                                    ringLine.x1 = ringCoords[0];
+                                    ringLine.y1 = ringCoords[1];
                                 }
-                                let [drawX, drawY] = getHexCenter(ringCoords[0], ringCoords[1]);
-                                ctx.lineTo(drawX, drawY);
+                                ringLine = JSON.stringify(ringLine);
+                                if (ringLines[ringLine]) {
+                                    ringLines[ringLine].push(hexType.color);
+                                } else {
+                                    ringLines[ringLine] = [hexType.color];
+                                }
                             }
-                            ctx.stroke();
+                            //ctx.lineTo(centerX * .05 + drawX * .95, centerY * .05 + drawY * .95);
                         }
                     }
                 }
             }
         }
+        //todo: group lines by xy coordinates.  Maybe sort first, then when iterating just check the next?
+        // I can use cell IDs, I suppose.  Or just encoded XY coords.
+        //so, ringLines will be a dictionary of encodedCoords, List<color> which allows duplicates.
+        const segmentCount=8;
+        ctx.lineWidth = 6;
+        for (let ringLine in ringLines) {
+            let colors = ringLines[ringLine];
+            ringLine = JSON.parse(ringLine);
+            [ringLine.x1, ringLine.y1] = getHexCenter(ringLine.x1, ringLine.y1);
+            [ringLine.x2, ringLine.y2] = getHexCenter(ringLine.x2, ringLine.y2);
+
+            ctx.beginPath();
+            ctx.arc(ringLine.x1, ringLine.y1, ctx.lineWidth / 2, 0, Math.PI * 2);
+            ctx.arc(ringLine.x2, ringLine.y2, ctx.lineWidth / 2, 0, Math.PI * 2);
+            ctx.fillStyle = colors[0];
+            ctx.fill();
+
+            if (colors.length == 1) {
+                ctx.strokeStyle = colors[0];
+                ctx.beginPath();
+                ctx.moveTo(ringLine.x1, ringLine.y1);
+                ctx.lineTo(ringLine.x2, ringLine.y2);
+                ctx.stroke();
+            } else {
+                //if there are multiple colors, split the line into 4 segments of length ctx.linewidth and draw accordingly.
+                for (var segmentI = 0; segmentI < segmentCount; segmentI++) {
+                    ctx.strokeStyle = colors[segmentI % colors.length];
+                    ctx.beginPath();
+                    let ratio = segmentI / segmentCount;
+                    ctx.moveTo(ringLine.x1 * ratio + ringLine.x2 * (1 - ratio), ringLine.y1 * ratio + ringLine.y2 * (1 - ratio));
+                    ratio += 1 / segmentCount;
+                    ctx.lineTo(ringLine.x1 * ratio + ringLine.x2 * (1 - ratio), ringLine.y1 * ratio + ringLine.y2 * (1 - ratio));
+                    ctx.stroke();
+                }
+                //offset: if vertical, offset horizontally.  else, offset vertically.
+                //let xOff = 0;
+                //let yOff = 0;
+                //let xOffIncrement = 0;
+                //let yOffIncrement = 0;
+                //if (ringLine.x1 == ringLine.x2) {
+                //    //offset horizontally
+                //    //xOff = -ctx.lineWidth * 4 / colors.length;
+                //    //xOffIncrement = ctx.lineWidth;
+                //    xOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
+                //    xOffIncrement = -ctx.lineWidth;
+                //} else {
+                //    //offset vertically;
+                //    yOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
+                //    yOffIncrement = -ctx.lineWidth;
+                //}
+
+                //for (let color of colors) {
+                //    ctx.strokeStyle = color;
+
+                //    ctx.beginPath();
+                //    ctx.lineTo(ringLine.x1 + xOff, ringLine.y1 + yOff);
+                //    ctx.lineTo(ringLine.x2 + xOff, ringLine.y2 + yOff);
+                //    ctx.stroke();
+                //    ctx.arc(ringLine.x1 + xOff, ringLine.y1 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
+                //    ctx.arc(ringLine.x2 + xOff, ringLine.y2 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
+                //    ctx.fillStyle = color;
+                //    ctx.fill();
+                //    xOff += xOffIncrement;
+                //    yOff += yOffIncrement;
+                //    }
+            }
+        }
+        //for (let ringLine in ringLines) {
+        //    let colors = ringLines[ringLine];
+        //    ringLine = JSON.parse(ringLine);
+        //    [ringLine.x1, ringLine.y1] = getHexCenter(ringLine.x1, ringLine.y1);
+        //    [ringLine.x2, ringLine.y2] = getHexCenter(ringLine.x2, ringLine.y2);
+        //    ctx.lineWidth = 8 / colors.length;
+        //    //offset: if vertical, offset horizontally.  else, offset vertically.
+        //    let xOff = 0;
+        //    let yOff = 0;
+        //    let xOffIncrement = 0;
+        //    let yOffIncrement = 0;
+        //    if (ringLine.x1 == ringLine.x2) {
+        //        //offset horizontally
+        //        //xOff = -ctx.lineWidth * 4 / colors.length;
+        //        //xOffIncrement = ctx.lineWidth;
+        //        xOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
+        //        xOffIncrement = -ctx.lineWidth;
+        //    } else {
+        //        //offset vertically;
+        //        yOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
+        //        yOffIncrement = -ctx.lineWidth;
+        //    }
+
+        //    for (let color of colors) {
+        //        ctx.strokeStyle = color;
+
+        //        ctx.beginPath();
+        //        ctx.lineTo(ringLine.x1 + xOff, ringLine.y1 + yOff);
+        //        ctx.lineTo(ringLine.x2 + xOff, ringLine.y2 + yOff);
+        //        ctx.stroke();
+        //        ctx.arc(ringLine.x1 + xOff, ringLine.y1 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
+        //        ctx.arc(ringLine.x2 + xOff, ringLine.y2 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
+        //        ctx.fillStyle = color;
+        //        ctx.fill();
+        //        xOff += xOffIncrement;
+        //        yOff += yOffIncrement;
+        //    }
+        //}
+
         ctx.lineWidth = 1;
-        ctx.globalAlpha = 1;
         ctx.strokeStyle = 'black';
         for (let [s, x, y, c] of drawStrings) {
             drawString(s, x, y, c);
@@ -592,7 +715,30 @@ $(document).ready(function () {
 
                     if (targetHexTypeID > 3) {
                         //found a clue, increase the ring size.
+                        //get max radius by finding closest wall from any hex with this color.
                         var maxRadius = Math.floor(COLS / 2);
+                        for (let y = 0; y < ROWS; ++y) {
+                            for (let x = 0; x < COLS; ++x) {
+                                let cell = getBoardCell([x, y]);
+                                if (cell && cell.hexTypeID == targetHexTypeID) {
+                                    //travel in all directions until finding a space without a cell.
+                                    for (let dir = 0; dir < 6; dir++) {
+                                        let neighborCoords = [x, y];
+                                        for (let radius = 1; radius <= maxRadius; radius++) {
+                                            neighborCoords = getNeighborHexCoords(neighborCoords, dir);
+                                            let neighborcell = getBoardCell(neighborCoords);
+                                            if (!neighborcell || neighborcell.hexTypeID == 0) {
+                                                maxRadius = radius - 1;
+                                                break;
+                                            }
+                                        }
+                                        if (maxRadius == 1) {
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         if (event.buttons == 2) {
                             if (hexTypes[targetHexTypeID].radius > 0) {
                                 hexTypes[targetHexTypeID].radius--;
@@ -2856,8 +3002,8 @@ $(document).ready(function () {
         name: "Redo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to redo 10 steps at a time)",
         color: "lightgray",
         //shortcutKey: "^up",
-        click: function (ctrlKey,shiftKey) {
-            redoBoardChange(shiftKey?10:1);
+        click: function (ctrlKey, shiftKey) {
+            redoBoardChange(shiftKey ? 10 : 1);
             drawBoard();
         },
         draw: ">",
