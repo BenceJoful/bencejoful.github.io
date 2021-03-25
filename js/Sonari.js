@@ -3,10 +3,8 @@
  *      hover over cells to highlight that cell's ring.  
  *      click on colors to toggle those rings on/off.  
  *      hide ring when it fulfills the clue: either correct number of shaded cells or (for 0 clues) all cells marked unshaded.
- * fix solve starbattle to use shaded/unshaded and not numbers.
  * What do I really want?  Set a puzzle to find out.  
- * Solve starbattle.
- * 
+ * Answer check
 */
 
 'use strict';
@@ -2844,9 +2842,39 @@ $(document).ready(function () {
         },
         draw: "🖫",
     });
+    tools.push({
+        name: "Undo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to undo 10 steps at a time)",
+        color: "lightgray",
+        //shortcutKey: "^up",
+        click: function (ctrlKey, shiftKey) {
+            undoBoardChange(shiftKey ? 10 : 1);
+            drawBoard();
+        },
+        draw: "<",
+    });
+    tools.push({
+        name: "Redo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to redo 10 steps at a time)",
+        color: "lightgray",
+        //shortcutKey: "^up",
+        click: function (ctrlKey,shiftKey) {
+            redoBoardChange(shiftKey?10:1);
+            drawBoard();
+        },
+        draw: ">",
+    });
 
-    for (let placeholderI = 0; placeholderI < 9; placeholderI++) {
-        tools.push( { name: "", color: "", click: function () { }, draw: function () { }, });
+    //tools.push({
+    //    name: "About",
+    //    color: "lightgray",
+    //    click: function () {
+    //        alert(
+    //            "Sonari setter/solver by BenceJoful\nVersion 0.0.1\nOriginal puzzle genre by Qinlux\n\nKeyboard shortcuts: Ctrl+z"
+    //        );
+    //    },
+    //    draw: "@",
+    //});
+    for (let placeholderI = 0; placeholderI < 7; placeholderI++) {
+        tools.push({ name: "", color: "", click: function () { }, draw: function () { }, });
     }
     let solvingTool = {
         name: "Solve: click to shade/unshade and modify ring sizes",
