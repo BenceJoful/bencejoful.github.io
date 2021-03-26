@@ -51,7 +51,7 @@ $(document).ready(function () {
         if (percent == undefined) percent = 1;
         ctx.beginPath();
         for (var i = 0; i < 6; i++) {
-            ctx.lineTo(x + HEX_PATH[i][0] * percent, y + HEX_PATH[i][1] * percent); // no need to moveTo first, since the initial lineTo is treated as a moveTo.
+            ctx.lineTo(x + HEX_PATH[i][0] * percent, Math.round(y + HEX_PATH[i][1] * percent)+.5); // no need to moveTo first, since the initial lineTo is treated as a moveTo.
         }
         ctx.closePath();
     };
@@ -338,13 +338,13 @@ $(document).ready(function () {
                 ctx.stroke();
             } else {
                 //if there are multiple colors, split the line into 4 segments of length ctx.linewidth and draw accordingly.
+                let ratio = 0;
                 for (var segmentI = 0; segmentI < segmentCount; segmentI++) {
                     ctx.strokeStyle = colors[segmentI % colors.length];
                     ctx.beginPath();
-                    let ratio = segmentI / segmentCount;
-                    ctx.moveTo(ringLine.x1 * ratio + ringLine.x2 * (1 - ratio), ringLine.y1 * ratio + ringLine.y2 * (1 - ratio));
+                    ctx.moveTo(ringLine.x1 * ratio + ringLine.x2 * (1 - ratio), Math.round(ringLine.y1 * ratio + ringLine.y2 * (1 - ratio)));
                     ratio += 1 / segmentCount;
-                    ctx.lineTo(ringLine.x1 * ratio + ringLine.x2 * (1 - ratio), ringLine.y1 * ratio + ringLine.y2 * (1 - ratio));
+                    ctx.lineTo(ringLine.x1 * ratio + ringLine.x2 * (1 - ratio), Math.round(ringLine.y1 * ratio + ringLine.y2 * (1 - ratio)));
                     ctx.stroke();
                 }
                 //offset: if vertical, offset horizontally.  else, offset vertically.
@@ -536,8 +536,8 @@ $(document).ready(function () {
         var canvasOffset = $canvas.offset();
         var offsetX = canvasOffset.left;
         var offsetY = canvasOffset.top;
-        var mouseX = parseInt(e.clientX - offsetX);
-        var mouseY = parseInt(e.clientY - offsetY);
+        var mouseX = parseInt(e.pageX - offsetX);
+        var mouseY = parseInt(e.pageY - offsetY);
         if (eventType == "move") {
             if (currentTool == "Pencil") {
                 var prevHexCoords = getMouseHexCoords(prevMouseX, prevMouseY);
