@@ -44,7 +44,7 @@ $(document).ready(function () {
 
     function getHexCenter(x, y) {
         var drawCoords = getDrawCoords(x, y);
-        return [drawCoords[0] + HEX_W * .65, drawCoords[1] + HEX_H / 2];
+        return [drawCoords[0] + HEX_W * .65+.5, drawCoords[1] + HEX_H / 2];
     };
 
     function setPathCoords(x, y, percent) {
@@ -315,8 +315,6 @@ $(document).ready(function () {
                 }
             }
         }
-        //todo: group lines by xy coordinates.  Maybe sort first, then when iterating just check the next?
-        // I can use cell IDs, I suppose.  Or just encoded XY coords.
         //so, ringLines will be a dictionary of encodedCoords, List<color> which allows duplicates.
         const segmentCount=8;
         ctx.lineWidth = 6;
