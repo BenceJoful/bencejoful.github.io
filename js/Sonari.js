@@ -2435,7 +2435,7 @@ $(document).ready(function () {
     var toolWidth = 30;
     var toolHeight = 30;
     var toolColumns = 7;
-    var toolBoxLeft = toolMargin;//canvasW - .5 - (toolWidth + toolMargin) * toolColumns;
+    var toolBoxLeft = toolMargin+.5;//canvasW - .5 - (toolWidth + toolMargin) * toolColumns;
 
     for (var i = 1; i < hexTypes.length; i++) {
         var shortcutKey = "key_" + hexTypes[i].name;
