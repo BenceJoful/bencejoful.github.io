@@ -3,11 +3,10 @@
  *      hover over cells to highlight that cell's ring.  
  *      click on colors to toggle those rings on/off.  
  *      hide ring when it fulfills the clue: either correct number of shaded cells or (for 0 clues) all cells marked unshaded.
+ *          workaround, simply shade over that clue.
  * Answer check
- * Mobile friendly
+ * Mobile friendly - better aspect ratio, more responsive controls, no zooming in.
  * button(?) to unlock setting mode.
- * scale to board size.
- * striping of rings.
  * save ring radius to url.
 */
 
@@ -44,14 +43,14 @@ $(document).ready(function () {
 
     function getHexCenter(x, y) {
         var drawCoords = getDrawCoords(x, y);
-        return [drawCoords[0] + HEX_W * .65+.5, drawCoords[1] + HEX_H / 2];
+        return [drawCoords[0] + HEX_W * .65 + .5, drawCoords[1] + HEX_H / 2];
     };
 
     function setPathCoords(x, y, percent) {
         if (percent == undefined) percent = 1;
         ctx.beginPath();
         for (var i = 0; i < 6; i++) {
-            ctx.lineTo(x + HEX_PATH[i][0] * percent, Math.round(y + HEX_PATH[i][1] * percent)+.5); // no need to moveTo first, since the initial lineTo is treated as a moveTo.
+            ctx.lineTo(x + HEX_PATH[i][0] * percent, Math.round(y + HEX_PATH[i][1] * percent) + .5); // no need to moveTo first, since the initial lineTo is treated as a moveTo.
         }
         ctx.closePath();
     };
@@ -159,8 +158,11 @@ $(document).ready(function () {
         drawBoard();
     }
     function drawBoard() {
-
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'black';
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        //ctx.fillStyle = "pink";
+        //ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         //clear out mouseovers that were here before.
         for (var i = mouseOverTexts.length - 1; i >= 0; i--) {
@@ -316,7 +318,7 @@ $(document).ready(function () {
             }
         }
         //so, ringLines will be a dictionary of encodedCoords, List<color> which allows duplicates.
-        const segmentCount=8;
+        const segmentCount = 8;
         ctx.lineWidth = 6;
         for (let ringLine in ringLines) {
             let colors = ringLines[ringLine];
@@ -479,7 +481,7 @@ $(document).ready(function () {
                 ctx.strokeRect(tool.x, tool.y, tool.width, tool.height);
             }
             if (typeof tool.draw === "string") {
-                drawString(tool.draw, tool.x + tool.width / 2 - 6.5, tool.y + 3.5, "black");
+                drawString(tool.draw, tool.x + tool.width / 2 - 6.5, tool.y + 3, "black");
             } else if (tool.draw) {
                 tool.draw();
             }
@@ -1032,7 +1034,7 @@ $(document).ready(function () {
     };
 
     function drawString(s, inX, inY, color, backgroundColor, maxWidth) {
-        ctx.fillStyle = "black";
+        ctx.fillStyle = color;
         ctx.fillText(s, inX, inY + 18, maxWidth);
         return;
         //var pixels = [];
@@ -1264,24 +1266,26 @@ $(document).ready(function () {
     var canvasW = canvas.width;
     var canvasH = canvas.height;
     var linelen = 20;//6;//20;//
-    var HEX_W = linelen * 1.5;
-    var HEX_H = linelen * 2 / 1.1547;
-    var HEX_PATH = [
-        [linelen * 1.5, HEX_H],
-        [linelen * 2.0, HEX_H / 2],
-        [linelen * 1.5, 0],
-        [linelen * 0.5, 0],
-        [0, HEX_H / 2],
-        [linelen * 0.5, HEX_H],
-    ];
+    var HEX_W;
+    var HEX_H;
+    var HEX_PATH;
     var canvasDrawingXOff = 0;
     var canvasDrawingYOff = 0;
     function recalcDrawingOffsets() {
-        canvasDrawingXOff = 0;
-        canvasDrawingYOff = 0;
-        var drawCoords = getDrawCoords(ROWS, COLS);
-        canvasDrawingXOff = canvasW / 2 - drawCoords[0] / 2;
-        canvasDrawingYOff = canvasH / 2 - drawCoords[1] / 2;
+        linelen = (canvasH - 20) / (COLS * 2 / 1.1547);
+        HEX_W = linelen * 1.5;
+        HEX_H = linelen * 2 / 1.1547;
+        HEX_PATH = [
+            [linelen * 1.5, HEX_H],
+            [linelen * 2.0, HEX_H / 2],
+            [linelen * 1.5, 0],
+            [linelen * 0.5, 0],
+            [0, HEX_H / 2],
+            [linelen * 0.5, HEX_H],
+        ];
+
+        canvasDrawingXOff = canvasW / 2 - (HEX_W * COLS) / 2;
+        canvasDrawingYOff = canvasH / 2 - HEX_H * COLS / 2 - ((Math.ceil(COLS / 2)) % 2 ? 0 : HEX_H / 2);
     }
 
     var COLS = 13;//19;//
@@ -1304,14 +1308,6 @@ $(document).ready(function () {
     $canvas.mousedown(function (e) { handleMouse(e, "down"); });
     $canvas.mouseup(function (e) { handleMouse(e, "up"); });
 
-    var boardHalfW = COLS * HEX_W / 2 + HEX_H - HEX_W;
-    var boardHalfH = ROWS * HEX_H;
-    var transparencyGradient = ctx.createRadialGradient(boardHalfW, boardHalfH, 0, boardHalfW, boardHalfH, Math.sqrt((boardHalfW * boardHalfW) + (boardHalfH * boardHalfH)));
-    var n = 0;
-    while (n < ROWS * 2) {
-        transparencyGradient.addColorStop(n / (ROWS * 2), n % 2 == 1 ? '#eee' : '#ccc');
-        n++;
-    }
     var hexTypeNames = {
         "None": "None",
         "Unshaded": "Unshaded",
@@ -1334,7 +1330,7 @@ $(document).ready(function () {
     var hexTypes = [
         {
             name: hexTypeNames.None,
-            color: transparencyGradient,
+            color: "gray",
             symbol: "",
         }, {
             name: hexTypeNames.None,
@@ -2435,7 +2431,7 @@ $(document).ready(function () {
     var toolWidth = 30;
     var toolHeight = 30;
     var toolColumns = 7;
-    var toolBoxLeft = toolMargin+.5;//canvasW - .5 - (toolWidth + toolMargin) * toolColumns;
+    var toolBoxLeft = toolMargin + .5;//canvasW - .5 - (toolWidth + toolMargin) * toolColumns;
 
     for (var i = 1; i < hexTypes.length; i++) {
         var shortcutKey = "key_" + hexTypes[i].name;
@@ -2461,10 +2457,6 @@ $(document).ready(function () {
                     drawString(this.symbol, this.x + this.width / 2 - 6.5, this.y + 3.5, "black");
                 }
             });
-    }
-
-    for (let placeholderI = 0; placeholderI < 4; placeholderI++) {
-        tools.splice(3, 0, { name: "", color: "", click: function () { }, draw: function () { }, });
     }
 
     //for (var i = 1; i <= 9; i++) {
@@ -2599,7 +2591,7 @@ $(document).ready(function () {
     //    }
     //});
     tools.push({
-        name: "Solve for shaded cells (Ctrl+click to check all possible solutions)",
+        name: "Find a solution for shaded cells (Ctrl+click to check all possible solutions)",
         color: "lightgray",
         //shortcutKey: "w",
         click: function (ctrlKey, shiftKey) {
@@ -2754,7 +2746,7 @@ $(document).ready(function () {
                 }
             }
             //northwest to southeast, part 1.
-            for (let i = 1; i < COLS; i++) {
+            for (let i = 0; i < COLS; i += 2) {
                 let colGroup = [];
                 let coords = [i, 0];
                 while (inBoard(coords[0], coords[1])) {
@@ -2784,7 +2776,7 @@ $(document).ready(function () {
                 }
             }
             //southwest to northeast, part 1.
-            for (let i = 1; i < COLS; i++) {
+            for (let i = 1; i < COLS; i += 2) {
                 let colGroup = [];
                 let coords = [i, ROWS - 1];
                 while (inBoard(coords[0], coords[1])) {
@@ -2905,16 +2897,11 @@ $(document).ready(function () {
 
             if (ctrlKey) {
                 console.log(solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution(s)");
-                $("#log").val("This shaded cell layout has " + solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution" + (solBoardCount == 1 ? "" : "s"));
+                alert("This shaded cell layout has " + solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution" + (solBoardCount == 1 ? "" : "s"));
             } else {
                 if (solBoardCount == 0) {
-                    $("#log").val("This shaded cell layout has 0 solutions");
-                } else if (solBoardCount == 1) {
-                    $("#log").val("This shaded cell layout has at least 1 solution");
-                } else {
-                    $("#log").val("This shaded cell layout has " + solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution" + (solBoardCount == 1 ? "" : "s"));
+                    alert("This shaded cell layout has 0 solutions");
                 }
-
             }
 
             drawBoard();
@@ -2986,6 +2973,12 @@ $(document).ready(function () {
         },
         draw: "🖫",
     });
+
+//place shading tools just before undo/redo
+    tools.push(tools.shift());
+    tools.push(tools.shift());
+    tools.push(tools.shift());
+
     tools.push({
         name: "Undo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to undo 10 steps at a time)",
         color: "lightgray",
@@ -3017,9 +3010,6 @@ $(document).ready(function () {
     //    },
     //    draw: "@",
     //});
-    for (let placeholderI = 0; placeholderI < 7; placeholderI++) {
-        tools.push({ name: "", color: "", click: function () { }, draw: function () { }, });
-    }
     let solvingTool = {
         name: "Solve: click to shade/unshade and modify ring sizes",
         color: solvingGradient,
@@ -3034,18 +3024,45 @@ $(document).ready(function () {
                 drawToolShadow(this);
             }
             drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "crimson";
+            setPathCoords(this.x + this.width / 10, this.y + this.height / 10, 10 / linelen);
+            ctx.stroke();
+            ctx.strokeStyle = "dodgerblue";
+            setPathCoords(this.x + this.width / 2.3, this.y + this.height / 2.3, 6 / linelen);
+            ctx.stroke();
         }
     }
     tools.push(solvingTool);
-
+    let toolRowBreaks = [6, 13, 18, 21, 23];
+    let toolRowBreak = toolRowBreaks.shift();
     //layout tools in columnar grid.
+    let toolX = toolBoxLeft;
+    let toolY = toolMargin - .5;
     for (var i = 0; i < tools.length; i++) {
         var tool = tools[i];
-        tool.x = toolBoxLeft + (toolWidth + toolMargin) * (i % toolColumns);
-        tool.y = toolMargin - .5 + (toolHeight + toolMargin) * (Math.floor(i / toolColumns));
         tool.height = toolHeight;
         tool.width = toolWidth;
+        tool.x = toolX;
+        tool.y = toolY;
+
+        toolX += toolMargin + toolWidth;
+        if (i == toolRowBreak) {
+            toolX = toolBoxLeft;
+            toolY += toolMargin + toolHeight;
+            toolRowBreak = toolRowBreaks.shift();
+        }
     }
+
+    ////layout tools in columnar grid.
+    //for (var i = 0; i < tools.length; i++) {
+    //    var tool = tools[i];
+    //    tool.x = toolBoxLeft + (toolWidth + toolMargin) * (i % toolColumns);
+    //    tool.y = toolMargin - .5 + (toolHeight + toolMargin) * (Math.floor(i / toolColumns));
+    //    tool.height = toolHeight;
+    //    tool.width = toolWidth;
+    //}
 
     //create gradient for first tool, the solving tool.
     var solvingGradient = ctx.createLinearGradient(solvingTool.x,
