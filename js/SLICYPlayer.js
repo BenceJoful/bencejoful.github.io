@@ -458,7 +458,11 @@ $(document).ready(function () {
             }
             var mouseOverText = getMouseOverTextAtCoords(mouseX, mouseY);
             if (mouseOverText) {
-                drawString(mouseOverText, mouseX, mouseY + 20, "black", "white");
+                let mtX = 218;  
+                let mtY = 5;
+                ctx.clearRect(mtX - 5, mtY - 5, canvasW - mtX , 38);
+                drawString(mouseOverText, mtX, mtY, "black", "white");
+                //drawString(mouseOverText, mouseX, mouseY + 20, "black", "white");
                 showingMouseOver = true;
             }
         } else if (eventType == "down") {
@@ -2603,6 +2607,6 @@ $(document).ready(function () {
     //$('#btnImport').click(importBoard);
     $('#hTitle').click(promptDescription);
 
-    setInterval(function () { if (!solveMode) { drawBoard() } }, 2000);
+    setInterval(function () { if (!solveMode && !showingMouseOver) { drawBoard() } }, 2000);
 });
 
