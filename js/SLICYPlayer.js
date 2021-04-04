@@ -1,6 +1,4 @@
 ﻿/*todo: 
- * make shading in the URL.
- *    eventually make rows/columns/region colors/shading part of url.  increment by X if unshaded, 2X if shaded.
  * compress in url.
  * 
  * allow deleting in set mode for different shaped grids
@@ -196,7 +194,6 @@ $(document).ready(function () {
         resetBoard();
         description = boardDef.shift();
         $("#hTitle").text(description);
-        //thermos = JSON.parse(boardDef.shift());
         var lines = boardDef[0].replace(/\./g, "@").split("_");
         //for each line, get the first 4 characters, convert to integer, put it in board.
         for (var i = 0; i < lines.length; i++) {
@@ -270,9 +267,6 @@ $(document).ready(function () {
                     if (maxY < y) {
                         maxY = y;
                     }
-                    //} else {
-                    //drawBlock(x, y, hexTypes[hexTypeID].color, null, null, true);
-                    //todo: make this a basic hex, not squarish grid
                 }
             }
         }
@@ -478,78 +472,7 @@ $(document).ready(function () {
             if (!handled) {
                 //check board
                 isMouseDown = true;
-                if (currentTool == "Thermo") {
-                    var hexCoords = getMouseHexCoords(mouseX, mouseY);
-                    if (inBoard(hexCoords[0], hexCoords[1])) {
-                        let cell = getBoardCell(hexCoords);
-                        if (cell) {
-                            registerBoardChange();
-                            //check if this is in a thermo.  if so, remove this cell and all above it.
-                            //todo: clean up thermos which are contained within other thermos, to handle case when we just trimmed off a split portion.
-                            let foundit = false;
-                            for (let tidx = thermos.length - 1; tidx >= 0; tidx--) {
-                                for (let tidx2 = 0; tidx2 < thermos[tidx].length; tidx2++) {
-                                    var thermocellcoords = thermos[tidx][tidx2]
-                                    if (thermocellcoords[0] == cell.x && thermocellcoords[1] == cell.y) {
-                                        foundit = true;
-                                        if (tidx2 == 0) {
-                                            thermos.splice(tidx, 1);
-                                        } else {
-                                            thermos[tidx].splice(tidx2, thermos[tidx].length - tidx2);
-                                        }
-                                        break;
-                                    }
-                                }
-                                if (foundit) break;
-                            }
-                            if (!foundit) {
-                                //if not, check if adjacent cells are in any thermos.  if so, add to the nearest thermo cell.
-                                let closestAdjacentThermo = null;
-                                let closestAdjacentThermoCellID = null;
-                                let closestAdjacentThermoDist = 1000000;
-                                for (let neighborcell of getAllNeighborHexCoords(hexCoords)) {
-                                    //check all thermos to see if they exist.
-                                    foundit = false;
-                                    for (let thermo of thermos) {
-                                        //for (let thermocell of thermo) {
-                                        for (let tidx = 0; tidx < thermo.length; tidx++) {
-                                            if (neighborcell[0] == thermo[tidx][0] && neighborcell[1] == thermo[tidx][1]) {
-                                                let neighborcenter = getHexCenter(neighborcell[0], neighborcell[1]);
-                                                let dist = Math.pow(mouseX - neighborcenter[0], 2) + Math.pow(mouseY - neighborcenter[1], 2);
-                                                if (dist < closestAdjacentThermoDist) {
-                                                    closestAdjacentThermo = thermo;
-                                                    closestAdjacentThermoCellID = tidx;
-                                                    closestAdjacentThermoDist = dist;
-                                                }
-                                                foundit = true;
-                                                break;
-                                            }
-                                        }
-                                        if (foundit) break;
-                                    }
-                                }
-                                if (closestAdjacentThermo) {
-                                    //put cell onto end of existing thermo.
-                                    if (closestAdjacentThermoCellID == closestAdjacentThermo.length - 1) {
-                                        closestAdjacentThermo.push([cell.x, cell.y]);
-                                    } else {
-                                        //create new thermo split from last, with this cell as last one.
-                                        let newthermo = [];
-                                        for (let tidx = 0; tidx <= closestAdjacentThermoCellID; tidx++) {
-                                            newthermo.push([closestAdjacentThermo[tidx][0], closestAdjacentThermo[tidx][1]]);
-                                        }
-                                        newthermo.push([cell.x, cell.y]);
-                                        thermos.push(newthermo);
-                                    }
-                                } else {
-                                    //start new thermo.
-                                    thermos.push([[cell.x, cell.y]]);
-                                }
-                            }
-                            drawBoard();
-                        }
-                    }
-                } else if (currentTool == "Pencil") {
+                if (currentTool == "Pencil") {
                     var boardJSON = getBoardJSON();
                     mouseMovingShaded = "";
                     if (usePencil(mouseX, mouseY, e.shiftKey, e.ctrlKey)) {
@@ -565,7 +488,7 @@ $(document).ready(function () {
         }
     }
     function getBoardJSON() {
-        return JSON.stringify({ "desc": description, "board": board, "thermos": thermos });
+        return JSON.stringify({ "desc": description, "board": board});
     }
     function registerBoardChange(boardJSON) {
         undoboards.push(boardJSON || getBoardJSON());
@@ -604,7 +527,6 @@ $(document).ready(function () {
         board = b.board;
         description = b.desc;
         $("#hTitle").text(description);
-        thermos = b.thermos;
     }
 
     var prevMouseX = null;
@@ -1169,7 +1091,6 @@ $(document).ready(function () {
     var board;
     var undoboards;//used for undo
     var redoboards;//used for redo
-    var thermos = [];
     var solveMode = true;
 
     function toggleSolveMode() {
