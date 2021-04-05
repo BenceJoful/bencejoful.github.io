@@ -35,9 +35,9 @@ $(document).ready(function () {
     }
     function getCellColor(cell) {
         if (cell.isShaded) {
-            return "#444444";
+            return SOLVING_SHADED;
         } else if (cell.isUnshaded) {
-            return "#b3ffb3";
+            return SOLVING_UNSHADED;
         } else if (solveMode) {
             return "white";
         } else {
@@ -152,21 +152,30 @@ $(document).ready(function () {
             //}
 
             ctx.beginPath();
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = "lightgray";
             for (var border of thinBorders) {
                 ctx.moveTo(border[0], border[1] - .5);
                 ctx.lineTo(border[2], border[3] - .5);
             }
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "lightgray";
             ctx.stroke();
 
             ctx.beginPath();
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = 'black';
+            for (var border of thickBorders) {
+                ctx.moveTo(border[0] * .95 + border[2] * .05, border[1] * .95 + border[3]*.05);
+                ctx.lineTo(border[2] * .95 + border[0] * .05, border[3] * .95 + border[1] * .05);
+            }
+            ctx.lineWidth = 7;
+            ctx.strokeStyle = 'white';
+            ctx.stroke();
+
+            ctx.beginPath();
             for (var border of thickBorders) {
                 ctx.moveTo(border[0], border[1]);
                 ctx.lineTo(border[2], border[3]);
             }
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = 'black';
             ctx.stroke();
 
         }
@@ -1101,6 +1110,8 @@ $(document).ready(function () {
     var undoboards;//used for undo
     var redoboards;//used for redo
     var solveMode = true;
+    var SOLVING_SHADED = "MidnightBlue";
+    var SOLVING_UNSHADED = "LightSteelBlue";
 
     function toggleSolveMode() {
         solveMode = !solveMode;
@@ -2458,7 +2469,7 @@ $(document).ready(function () {
         //});
 
         let solvingTool = {
-            name: "Solve: click to shade/unshade",
+            name: "Solve: click to shade/unshade (+Shift to erase)",
             color: solvingGradient,
             symbol: "",//"~",
             shortcutKey: "+`",
@@ -2474,6 +2485,27 @@ $(document).ready(function () {
             }
         }
         if (!solveMode) {
+            tools.push(solvingTool);
+        }
+        if (solveMode) {
+            solvingTool = {
+                name: "Choose Solving Colors",
+                color: solvingGradient,
+                //shortcutKey: "^up",
+                click: function () {
+                    let shaded = prompt("Shaded Color (#XXXXXX or CSS color): ", SOLVING_SHADED);
+                    if (shaded) {
+                        let unshaded = prompt("Unshaded Color (#XXXXXX or CSS color): ", SOLVING_UNSHADED);
+                        if (unshaded) {
+                            SOLVING_SHADED = shaded;
+                            SOLVING_UNSHADED = unshaded;
+                        }
+                    }
+                    createTools();
+                    drawBoard();
+                },
+                draw: "C",
+            }
             tools.push(solvingTool);
         }
         if (!solveMode) {
@@ -2534,18 +2566,16 @@ $(document).ready(function () {
         //}
 
         //create gradient for first tool, the solving tool.
-        if (!solveMode) {
-            var solvingGradient = ctx.createLinearGradient(solvingTool.x,
-                solvingTool.y,
-                solvingTool.x + solvingTool.width,
-                solvingTool.y + solvingTool.height);
+        var solvingGradient = ctx.createLinearGradient(solvingTool.x,
+            solvingTool.y,
+            solvingTool.x + solvingTool.width,
+            solvingTool.y + solvingTool.height);
 
-            solvingGradient.addColorStop(.3, "#FFFFFF");
-            solvingGradient.addColorStop(0.35, "#444444");
-            solvingGradient.addColorStop(0.65, "#444444");
-            solvingGradient.addColorStop(.7, "#B3FFB3");
-            solvingTool.color = solvingGradient;
-        }
+        solvingGradient.addColorStop(.3, "#FFFFFF");
+        solvingGradient.addColorStop(0.35, SOLVING_SHADED);
+        solvingGradient.addColorStop(0.65, SOLVING_SHADED);
+        solvingGradient.addColorStop(.7, SOLVING_UNSHADED);
+        solvingTool.color = solvingGradient;
 
         //var descriptionTool = {
         //    name: "Description",
@@ -2614,7 +2644,7 @@ $(document).ready(function () {
 
     setInterval(function () { if (!solveMode && !showingMouseOver) { drawBoard() } }, 2000);
 
-    function hashString (s) {
+    function hashString(s) {
         var hash = 0, i, chr;
         if (s.length === 0) return hash;
         for (i = 0; i < s.length; i++) {
