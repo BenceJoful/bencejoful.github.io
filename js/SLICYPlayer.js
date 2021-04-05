@@ -2660,7 +2660,7 @@ $(document).ready(function () {
                 }
             }
         }
-        if (hashString(boardShading) == -182606930) {
+        if (hashString(boardShading) == 110412525) {
             setTimeout(function () { alert("Congratulations, you solved the puzzle!") }, 1);
             isMouseDown = false;
         }
