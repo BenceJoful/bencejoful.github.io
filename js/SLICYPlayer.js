@@ -5,6 +5,8 @@
  * allow setting row/column size.
  * toolbar doesn't scroll, with status bar for hover text.  Redraws itself only.
  * check function.
+ * 
+ * Make mobile-friendly: allow double tapping/long tapping and swiping to shade areas.  allow two-finger swipe for scrolling.
 */
 
 'use strict';
@@ -458,9 +460,9 @@ $(document).ready(function () {
             }
             var mouseOverText = getMouseOverTextAtCoords(mouseX, mouseY);
             if (mouseOverText) {
-                let mtX = 218;  
+                let mtX = 218;
                 let mtY = 5;
-                ctx.clearRect(mtX - 5, mtY - 5, canvasW - mtX , 38);
+                ctx.clearRect(mtX - 5, mtY - 5, canvasW - mtX, 38);
                 drawString(mouseOverText, mtX, mtY, "black", "white");
                 //drawString(mouseOverText, mouseX, mouseY + 20, "black", "white");
                 showingMouseOver = true;
@@ -492,7 +494,7 @@ $(document).ready(function () {
         }
     }
     function getBoardJSON() {
-        return JSON.stringify({ "desc": description, "board": board});
+        return JSON.stringify({ "desc": description, "board": board });
     }
     function registerBoardChange(boardJSON) {
         undoboards.push(boardJSON || getBoardJSON());
@@ -580,6 +582,9 @@ $(document).ready(function () {
                             case "None": targetCell.isUnshaded = false; targetCell.isShaded = false; break;
                             case "Shaded": targetCell.isUnshaded = false; targetCell.isShaded = true; break;
                             case "Unshaded": targetCell.isUnshaded = true; targetCell.isShaded = false; break;
+                        }
+                        if (description == "SL2KY") {
+                            checkSL2KYAnswer();
                         }
                         //immediately redraw this cell only.
                         drawCell(targetCell);
@@ -2608,5 +2613,36 @@ $(document).ready(function () {
     $('#hTitle').click(promptDescription);
 
     setInterval(function () { if (!solveMode && !showingMouseOver) { drawBoard() } }, 2000);
+
+    function hashString (s) {
+        var hash = 0, i, chr;
+        if (s.length === 0) return hash;
+        for (i = 0; i < s.length; i++) {
+            chr = s.charCodeAt(i);
+            hash = ((hash << 5) - hash) + chr;
+            hash |= 0; // Convert to 32bit integer
+        }
+        return hash;
+    };
+
+    function checkSL2KYAnswer() {
+        //check if shading is correct.
+        var boardShading = '';
+        for (var x = 0; x < COLS; ++x) {
+            for (var y = 0; y < ROWS; ++y) {
+                let cell = getBoardCell([x, y]);
+                if (cell && cell.isShaded) {
+                    boardShading += "1";
+                }
+                else {
+                    boardShading += "0";
+                }
+            }
+        }
+        if (hashString(boardShading) == -182606930) {
+            setTimeout(function () { alert("Congratulations, you solved the puzzle!") }, 1);
+            isMouseDown = false;
+        }
+    }
 });
 
