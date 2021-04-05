@@ -327,8 +327,8 @@ $(document).ready(function () {
             [ringLine.x2, ringLine.y2] = getHexCenter(ringLine.x2, ringLine.y2);
 
             ctx.beginPath();
-            ctx.arc(ringLine.x1, ringLine.y1, ctx.lineWidth / 2, 0, Math.PI * 2);
-            ctx.arc(ringLine.x2, ringLine.y2, ctx.lineWidth / 2, 0, Math.PI * 2);
+            //ctx.arc(ringLine.x1, ringLine.y1, ctx.lineWidth / 2, 0, Math.PI * 2);
+            //ctx.arc(ringLine.x2, ringLine.y2, ctx.lineWidth / 2, 0, Math.PI * 2);
             ctx.fillStyle = colors[0];
             ctx.fill();
 
@@ -531,15 +531,37 @@ $(document).ready(function () {
     var isMouseDown = false;
     var mouseMovingColor = 0;
     var showingMouseOver = false;
-    function handleMouse(e, eventType) {
+    function handleMouse(e) {
         e.preventDefault();
         e.stopPropagation();
 
-        var canvasOffset = $canvas.offset();
-        var offsetX = canvasOffset.left;
-        var offsetY = canvasOffset.top;
-        var mouseX = parseInt(e.pageX - offsetX);
-        var mouseY = parseInt(e.pageY - offsetY);
+        let eventType = "";
+        let canvasOffset = $canvas.offset();
+        let mouseX = - canvasOffset.left;
+        let mouseY = -canvasOffset.top;
+
+        if (e.touches && e.touches[0]) {
+            mouseX += e.touches[0].pageX;
+            mouseY += e.touches[0].pageY;
+        } else {
+            mouseX += e.pageX;
+            mouseY += e.pageY;
+        }
+
+        switch (e.type.substr(5)) {
+            case "down":
+            case "start":
+                eventType = "down";
+                break;
+            case "move":
+                eventType = "move";
+                break;
+            case "up":
+            case "end":
+                eventType = "up";
+                break;
+        }
+
         if (eventType == "move") {
             if (currentTool == "Pencil") {
                 var prevHexCoords = getMouseHexCoords(prevMouseX, prevMouseY);
@@ -1299,14 +1321,19 @@ $(document).ready(function () {
     var description;
 
     var ctx = canvas.getContext('2d');
+    ctx.lineCap = "round";
     ctx.shadowColor = 'black';
     ctx.font = '20px sans-serif';
 
     var $canvas = $(canvas);
 
-    $canvas.mousemove(function (e) { handleMouse(e, "move"); });
-    $canvas.mousedown(function (e) { handleMouse(e, "down"); });
-    $canvas.mouseup(function (e) { handleMouse(e, "up"); });
+
+    $canvas.mousedown(handleMouse);
+    $canvas.mousemove(handleMouse);
+    $canvas.mouseup(handleMouse);
+    canvas.ontouchstart = handleMouse;
+    canvas.ontouchmove = handleMouse;
+    canvas.ontouchend = handleMouse;
 
     var hexTypeNames = {
         "None": "None",
@@ -2974,7 +3001,7 @@ $(document).ready(function () {
         draw: "🖫",
     });
 
-//place shading tools just before undo/redo
+    //place shading tools just before undo/redo
     tools.push(tools.shift());
     tools.push(tools.shift());
     tools.push(tools.shift());
