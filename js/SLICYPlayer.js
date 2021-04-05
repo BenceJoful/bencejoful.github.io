@@ -4,7 +4,7 @@
  * allow deleting in set mode for different shaped grids
  * allow setting row/column size.
  * toolbar doesn't scroll, with status bar for hover text.  Redraws itself only.
- * check function.
+ * generic check function, based on rules of SLICY
  * 
  * Make mobile-friendly: allow double tapping/long tapping and swiping to shade areas.  allow two-finger swipe for scrolling.
 */
@@ -437,15 +437,39 @@ $(document).ready(function () {
     var isMouseDown = false;
     var mouseMovingShaded = "";//"", "Shaded", "Unshaded", "None"
     var showingMouseOver = false;
-    function handleMouse(e, eventType) {
+    function handleMouse(e) {
+        let eventType = "";
+        let canvasOffset = $canvas.offset();
+        let mouseX = - canvasOffset.left;
+        let mouseY = -canvasOffset.top;
+
+        if (e.touches && e.touches[0]) {
+            mouseX += e.touches[0].pageX;
+            mouseY += e.touches[0].pageY;
+        } else {
+            mouseX += e.pageX;
+            mouseY += e.pageY;
+        }
+
+        switch (e.type.substr(5)) {
+            case "down":
+            case "start":
+                eventType = "down";
+                break;
+            case "move":
+                eventType = "move";
+                break;
+            case "up":
+            case "end":
+                eventType = "up";
+                break;
+        }
+
+        //for touch, change value on up.  Allow scrolling by not preventing default on start/move.
+
         e.preventDefault();
         e.stopPropagation();
 
-        var canvasOffset = $canvas.offset();
-        var offsetX = canvasOffset.left;
-        var offsetY = canvasOffset.top;
-        var mouseX = parseInt(e.pageX - offsetX);
-        var mouseY = parseInt(e.pageY - offsetY);
         if (eventType == "move") {
             if (currentTool == "Pencil") {
                 var prevHexCoords = getMouseHexCoords(prevMouseX, prevMouseY);
@@ -468,21 +492,23 @@ $(document).ready(function () {
                 showingMouseOver = true;
             }
         } else if (eventType == "down") {
-            var handled = false;
-            //check tools first
-            var tool = getToolAtCoords(mouseX, mouseY);
-            if (tool) {
-                handled = true;
-                tool.click(e.ctrlKey, e.shiftKey);
-            }
-            if (!handled) {
-                //check board
-                isMouseDown = true;
-                if (currentTool == "Pencil") {
-                    var boardJSON = getBoardJSON();
-                    mouseMovingShaded = "";
-                    if (usePencil(mouseX, mouseY, e.shiftKey, e.ctrlKey)) {
-                        registerBoardChange(boardJSON);
+            if (!isMouseDown) {//prevent double-calling by touch and mouse.
+                var handled = false;
+                //check tools first
+                var tool = getToolAtCoords(mouseX, mouseY);
+                if (tool) {
+                    handled = true;
+                    tool.click(e.ctrlKey, e.shiftKey);
+                }
+                if (!handled) {
+                    //check board
+                    isMouseDown = true;
+                    if (currentTool == "Pencil") {
+                        var boardJSON = getBoardJSON();
+                        mouseMovingShaded = "";
+                        if (usePencil(mouseX, mouseY, e.shiftKey, e.ctrlKey)) {
+                            registerBoardChange(boardJSON);
+                        }
                     }
                 }
             }
@@ -1113,7 +1139,6 @@ $(document).ready(function () {
         drawBoard();
     }
 
-
     var description;
 
     var ctx;
@@ -1128,9 +1153,20 @@ $(document).ready(function () {
 
     var $canvas = $(canvas);
 
-    $canvas.mousemove(function (e) { handleMouse(e, "move"); });
-    $canvas.mousedown(function (e) { handleMouse(e, "down"); });
-    $canvas.mouseup(function (e) { handleMouse(e, "up"); });
+    $canvas.mousedown(handleMouse);
+    $canvas.mousemove(handleMouse);
+    $canvas.mouseup(handleMouse);
+    var lastTouchStart;
+    var lastTouchScrollTop;
+    canvas.ontouchstart = function (e) { lastTouchStart = e; lastTouchScrollTop = $("body").scrollTop();};
+    //canvas.ontouchmove = handleMouse;
+    canvas.ontouchend = function (e) {
+        //if we didn't scroll (significantly?), trigger a touch.
+        if (lastTouchScrollTop == $("body").scrollTop()) {
+            handleMouse(lastTouchStart);
+            handleMouse(e);
+        }
+    };
 
     var hexTypeNames = {
         "None": "None",
