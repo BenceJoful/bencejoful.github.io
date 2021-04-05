@@ -236,7 +236,7 @@ $(document).ready(function () {
         //pencilCellCount = 0;
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'black';
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, $canvas.width(), $canvas.height());
         //ctx.fillStyle = "pink";
         //ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -1091,8 +1091,9 @@ $(document).ready(function () {
         }
     };
 
-    var canvas = document.getElementById('canvas');
-    var canvasW = canvas.width;
+    var $canvas = $("canvas");// = document.getElementById('canvas');
+    var canvasW = $canvas.width();
+    canvas.width = canvasW;
     var linelen = 20;//6;//20;//
     var HEX_W;
     var HEX_H;
@@ -1118,6 +1119,7 @@ $(document).ready(function () {
 
         //set canvas height.
         canvas.height = canvasDrawingYOff + (ROWS + 1) * HEX_H;
+        //$canvas.height($canvas[0].height);
         createCanvasContext();
     }
 
@@ -1144,23 +1146,21 @@ $(document).ready(function () {
     var ctx;
     function createCanvasContext() {
 
-        ctx = canvas.getContext('2d');
+        ctx = $canvas[0].getContext('2d');
         ctx.lineCap = "round";
         ctx.shadowColor = 'black';
         ctx.font = '20px sans-serif';
     }
     createCanvasContext();
 
-    var $canvas = $(canvas);
-
     $canvas.mousedown(handleMouse);
     $canvas.mousemove(handleMouse);
     $canvas.mouseup(handleMouse);
     var lastTouchStart;
     var lastTouchScrollTop;
-    canvas.ontouchstart = function (e) { lastTouchStart = e; lastTouchScrollTop = $("body").scrollTop();};
-    //canvas.ontouchmove = handleMouse;
-    canvas.ontouchend = function (e) {
+    $canvas[0].ontouchstart = function (e) { lastTouchStart = e; lastTouchScrollTop = $("body").scrollTop();};
+    //$canvas[0].ontouchmove = handleMouse;
+    $canvas[0].ontouchend = function (e) {
         //if we didn't scroll (significantly?), trigger a touch.
         if (lastTouchScrollTop == $("body").scrollTop()) {
             handleMouse(lastTouchStart);
