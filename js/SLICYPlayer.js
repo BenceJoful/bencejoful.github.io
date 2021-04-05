@@ -157,16 +157,7 @@ $(document).ready(function () {
                 ctx.lineTo(border[2], border[3] - .5);
             }
             ctx.lineWidth = 2;
-            ctx.strokeStyle = "lightgray";
-            ctx.stroke();
-
-            ctx.beginPath();
-            for (var border of thickBorders) {
-                ctx.moveTo(border[0] * .95 + border[2] * .05, border[1] * .95 + border[3]*.05);
-                ctx.lineTo(border[2] * .95 + border[0] * .05, border[3] * .95 + border[1] * .05);
-            }
-            ctx.lineWidth = 7;
-            ctx.strokeStyle = 'white';
+            ctx.strokeStyle = "#AAAAAA";
             ctx.stroke();
 
             ctx.beginPath();
@@ -1110,8 +1101,8 @@ $(document).ready(function () {
     var undoboards;//used for undo
     var redoboards;//used for redo
     var solveMode = true;
-    var SOLVING_SHADED = "MidnightBlue";
-    var SOLVING_UNSHADED = "LightSteelBlue";
+    var SOLVING_SHADED = "ForestGreen";
+    var SOLVING_UNSHADED = "PaleGreen";
 
     function toggleSolveMode() {
         solveMode = !solveMode;
@@ -1184,22 +1175,22 @@ $(document).ready(function () {
             radius: 0,
         }, {
             name: hexTypeNames.Green,
-            color: "lawngreen",
+            color: "lime",
             symbol: "",//"☆",
             radius: 0,
         }, {
             name: hexTypeNames.DarkGreen,
-            color: "Green",
+            color: "dodgerblue",
             symbol: "",//"★",
             radius: 0,
         }, {
             name: hexTypeNames.Blue,
-            color: "dodgerblue",
+            color: "Purple",
             symbol: "",//"⛨",
             radius: 0,
         }, {
             name: hexTypeNames.Purple,
-            color: "Purple",
+            color: "Pink",
             symbol: "",//"★",
             radius: 0,
         },
