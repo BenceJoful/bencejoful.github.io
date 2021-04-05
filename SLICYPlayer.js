@@ -157,9 +157,8 @@ $(document).ready(function () {
                 ctx.lineTo(border[2], border[3] - .5);
             }
             ctx.lineWidth = 2;
-            ctx.strokeStyle = "lightgray";
+            ctx.strokeStyle = "#AAAAAA";
             ctx.stroke();
-
 
             ctx.beginPath();
             for (var border of thickBorders) {
@@ -1102,8 +1101,8 @@ $(document).ready(function () {
     var undoboards;//used for undo
     var redoboards;//used for redo
     var solveMode = true;
-    var SOLVING_SHADED = "MidnightBlue";
-    var SOLVING_UNSHADED = "LightSteelBlue";
+    var SOLVING_SHADED = "ForestGreen";
+    var SOLVING_UNSHADED = "PaleGreen";
 
     function toggleSolveMode() {
         solveMode = !solveMode;
