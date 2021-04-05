@@ -1175,22 +1175,22 @@ $(document).ready(function () {
             radius: 0,
         }, {
             name: hexTypeNames.Green,
-            color: "lawngreen",
+            color: "lime",
             symbol: "",//"☆",
             radius: 0,
         }, {
             name: hexTypeNames.DarkGreen,
-            color: "Green",
+            color: "dodgerblue",
             symbol: "",//"★",
             radius: 0,
         }, {
             name: hexTypeNames.Blue,
-            color: "dodgerblue",
+            color: "Purple",
             symbol: "",//"⛨",
             radius: 0,
         }, {
             name: hexTypeNames.Purple,
-            color: "Purple",
+            color: "Pink",
             symbol: "",//"★",
             radius: 0,
         },
