@@ -2467,7 +2467,7 @@ $(document).ready(function () {
             click: function () {
                 window.open("SLICYPlayer.html?boardDef=" + escape(getBoardDef()));
             },
-            draw: "🖫",
+            draw: "⍈",
         });
         tools.push({
             name: solveMode ? "Edit mode" : "Solve mode",

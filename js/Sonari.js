@@ -1,14 +1,14 @@
 ﻿/*todo: 
- * solve tool: change to solve mode?
  *      hover over cells to highlight that cell's ring.  
  *      click on colors to toggle those rings on/off.  
  *      hide ring when it fulfills the clue: either correct number of shaded cells or (for 0 clues) all cells marked unshaded.
  *          workaround, simply shade over that clue.
  * Answer check
+ * colorblind mode: small leters nestled into the crook of the 
  * Mobile friendly - better aspect ratio, more responsive controls, no zooming in.
- * button(?) to unlock setting mode.
  * save ring radius to url.
  * Help section with rules and interface guide.
+ * Clues on intersections
 */
 
 'use strict';
@@ -2620,13 +2620,13 @@ $(document).ready(function () {
             draw: "X",
         });
         tools.push({
-            name: "Open as URL",
+            name: "Save changes to new tab/URL",
             color: "lightgray",
             //shortcutKey: "^up",
             click: function () {
                 window.open("Sonari.html?boardDef=" + escape(getBoardDef()));
             },
-            draw: "🖫",
+            draw: "⍈",
         });
         tools.push({
             name: solveMode ? "Edit mode" : "Solve mode",
