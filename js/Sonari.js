@@ -545,7 +545,6 @@ $(document).ready(function () {
         board = b.board;
         description = b.desc;
         $("#hTitle").text(description);
-        resetBoardDisplay();
     }
 
     let lastRadiusChangedTime = 0;
@@ -1146,7 +1145,6 @@ $(document).ready(function () {
     var COLS = 13;//19;//
     var ROWS = 13;//13;//19;// //N rows, plus creating a V at the bottom.  with COLS = 11, this means 5 extra rows.
     var board;
-    var boardDisplay;
     var undoboards;//used for undo
     var redoboards;//used for redo
     var solveMode = true;
