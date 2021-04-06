@@ -510,6 +510,9 @@ $(document).ready(function () {
         }
     }
     function addMouseOverText(text, type, left, top, right, bottom) {
+        if (!Array.isArray(text)) {
+            text = [text];
+        }
         mouseOverTexts.push({
             text: text,
             type: type,
@@ -523,7 +526,7 @@ $(document).ready(function () {
         for (var i = mouseOverTexts.length - 1; i >= 0; i--) {
             var mouseOverText = mouseOverTexts[i];
             if (mouseOverText.left <= mouseX && mouseX <= mouseOverText.right && mouseOverText.top <= mouseY && mouseY <= mouseOverText.bottom) {
-                if (typeof mouseOverText.text == "string") {
+                if (Array.isArray(mouseOverText.text)) {
                     return mouseOverText.text;
                 } else {
                     return mouseOverText.text();
@@ -578,10 +581,18 @@ $(document).ready(function () {
                 drawBoard();
             }
             var mouseOverText = getMouseOverTextAtCoords(mouseX, mouseY);
-            if (mouseOverText) {
-                drawString(mouseOverText, mouseX, mouseY + 20, "black", "white");
+            if (mouseOverText && mouseOverText[0]) {
+                let mtX = 258;
+                let mtY = 5;
+                ctx.clearRect(mtX - 5, mtY - 5, canvasW - mtX, 30 * mouseOverText.length);
+                for (let textLine of mouseOverText) {
+                    drawString(textLine, mtX, mtY, "black", "white");
+                    mtY += 20;
+                }
+                //drawString(mouseOverText, mouseX, mouseY + 20, "black", "white");
                 showingMouseOver = true;
             }
+
         } else if (eventType == "down") {
             var handled = false;
             //check tools first
@@ -2482,7 +2493,7 @@ $(document).ready(function () {
 
 
         tools.push({
-            name: "Undo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to undo 10 steps at a time)",
+            name: "Undo (or Ctrl+z)(+Shift to undo 10 steps at a time)",
             color: "lightgray",
             //shortcutKey: "^up",
             click: function (ctrlKey, shiftKey) {
@@ -2492,7 +2503,7 @@ $(document).ready(function () {
             draw: "<",
         });
         tools.push({
-            name: "Redo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to redo 10 steps at a time)",
+            name: "Redo (or Ctrl+z)(+Shift to redo 10 steps at a time)",
             color: "lightgray",
             //shortcutKey: "^up",
             click: function (ctrlKey, shiftKey) {
@@ -2738,7 +2749,7 @@ $(document).ready(function () {
             //    }
             //});
             tools.push({
-                name: "Find a solution for shaded cells (Ctrl+click to check all possible solutions)",
+                name: ["Find a solution for shaded cells","(Ctrl+click to check all possible solutions)"],
                 color: "lightgray",
                 //shortcutKey: "w",
                 click: function (ctrlKey, shiftKey) {
