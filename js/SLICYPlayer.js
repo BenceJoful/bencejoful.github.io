@@ -5,8 +5,6 @@
  * allow setting row/column size.
  * toolbar doesn't scroll, with status bar for hover text.  Redraws itself only.
  * generic check function, based on rules of SLICY
- * 
- * Make mobile-friendly: allow double tapping/long tapping and swiping to shade areas.  allow two-finger swipe for scrolling.
 */
 
 'use strict';
@@ -1119,7 +1117,6 @@ $(document).ready(function () {
 
         //set canvas height.
         canvas.height = canvasDrawingYOff + (ROWS + 1) * HEX_H;
-        //$canvas.height($canvas[0].height);
         createCanvasContext();
     }
 
@@ -2286,6 +2283,26 @@ $(document).ready(function () {
     function createTools() {
         tools = [];
 
+        tools.push({
+            name: "Undo (or Ctrl+z)(+Shift to undo 10 steps at a time)",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function (ctrlKey, shiftKey) {
+                undoBoardChange(shiftKey ? 10 : 1);
+                drawBoard();
+            },
+            draw: "<",
+        });
+        tools.push({
+            name: "Redo (or Ctrl+z)(+Shift to redo 10 steps at a time)",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function (ctrlKey, shiftKey) {
+                redoBoardChange(shiftKey ? 10 : 1);
+                drawBoard();
+            },
+            draw: ">",
+        });
 
         //for (var i = 1; i <= 9; i++) {
         //    tools.push({
@@ -2462,26 +2479,6 @@ $(document).ready(function () {
             draw: "✎",
         });
 
-        tools.push({
-            name: "Undo (or Ctrl+z)(+Shift to undo 10 steps at a time)",
-            color: "lightgray",
-            //shortcutKey: "^up",
-            click: function (ctrlKey, shiftKey) {
-                undoBoardChange(shiftKey ? 10 : 1);
-                drawBoard();
-            },
-            draw: "<",
-        });
-        tools.push({
-            name: "Redo (or Ctrl+z)(+Shift to redo 10 steps at a time)",
-            color: "lightgray",
-            //shortcutKey: "^up",
-            click: function (ctrlKey, shiftKey) {
-                redoBoardChange(shiftKey ? 10 : 1);
-                drawBoard();
-            },
-            draw: ">",
-        });
 
 
         //tools.push({

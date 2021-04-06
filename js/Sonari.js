@@ -238,7 +238,7 @@ $(document).ready(function () {
                     displayValue = boardDisplay[x][y];
                 }
 
-                drawStrings.push([displayValue.substr(0, 3), Math.round(coords[0] + HEX_W / 2 - linelen/3), Math.round(coords[1] + HEX_H / 2 - 12 + linelen/8 ), "black"]);
+                drawStrings.push([displayValue.substr(0, 3), Math.round(coords[0] + HEX_W / 2 - linelen / 3), Math.round(coords[1] + HEX_H / 2 - 12 + linelen / 8), "black"]);
 
                 //addMouseOverText(hexType.name + " (" + x + "," + y + "): " + boardDisplay[x][y], "board", coords[0] + 6, coords[1] + 3, coords[0] + 5 + 16, coords[1] + 3 + 16);
                 //draw bounding box:
@@ -424,7 +424,7 @@ $(document).ready(function () {
 
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'black';
-        ctx.font = linelen+'px sans-serif';
+        ctx.font = linelen + 'px sans-serif';
         for (let [s, x, y, c] of drawStrings) {
             drawString(s, x, y, c);
         }
@@ -723,6 +723,7 @@ $(document).ready(function () {
         resetBoardDisplay();
     }
 
+    let lastRadiusChangedTime = 0;
     var prevMouseX = null;
     var prevMouseY = null;
     function usePencil(mouseX, mouseY, shiftKey, ctrlKey) {
@@ -739,45 +740,49 @@ $(document).ready(function () {
                     let targetHexTypeID = board[hexCoords[0]][hexCoords[1]].hexTypeID;
 
                     if (targetHexTypeID > 3) {
-                        //found a clue, increase the ring size.
-                        //get max radius by finding closest wall from any hex with this color.
-                        var maxRadius = Math.floor(COLS / 2);
-                        for (let y = 0; y < ROWS; ++y) {
-                            for (let x = 0; x < COLS; ++x) {
-                                let cell = getBoardCell([x, y]);
-                                if (cell && cell.hexTypeID == targetHexTypeID) {
-                                    //travel in all directions until finding a space without a cell.
-                                    for (let dir = 0; dir < 6; dir++) {
-                                        let neighborCoords = [x, y];
-                                        for (let radius = 1; radius <= maxRadius; radius++) {
-                                            neighborCoords = getNeighborHexCoords(neighborCoords, dir);
-                                            let neighborcell = getBoardCell(neighborCoords);
-                                            if (!neighborcell || neighborcell.hexTypeID == 0) {
-                                                maxRadius = radius - 1;
+                        let currentTime = Date.now();
+                        if (currentTime > lastRadiusChangedTime + 100) {
+                            lastRadiusChangedTime = currentTime;
+                            //found a clue, increase the ring size.
+                            //get max radius by finding closest wall from any hex with this color.
+                            var maxRadius = Math.floor(COLS / 2);
+                            for (let y = 0; y < ROWS; ++y) {
+                                for (let x = 0; x < COLS; ++x) {
+                                    let cell = getBoardCell([x, y]);
+                                    if (cell && cell.hexTypeID == targetHexTypeID) {
+                                        //travel in all directions until finding a space without a cell.
+                                        for (let dir = 0; dir < 6; dir++) {
+                                            let neighborCoords = [x, y];
+                                            for (let radius = 1; radius <= maxRadius; radius++) {
+                                                neighborCoords = getNeighborHexCoords(neighborCoords, dir);
+                                                let neighborcell = getBoardCell(neighborCoords);
+                                                if (!neighborcell || neighborcell.hexTypeID == 0) {
+                                                    maxRadius = radius - 1;
+                                                    break;
+                                                }
+                                            }
+                                            if (maxRadius == 1) {
                                                 break;
                                             }
-                                        }
-                                        if (maxRadius == 1) {
-                                            break;
                                         }
                                     }
                                 }
                             }
-                        }
-                        if (event.buttons == 2) {
-                            if (hexTypes[targetHexTypeID].radius > 0) {
-                                hexTypes[targetHexTypeID].radius--;
+                            if (event.buttons == 2) {
+                                if (hexTypes[targetHexTypeID].radius > 0) {
+                                    hexTypes[targetHexTypeID].radius--;
+                                } else {
+                                    hexTypes[targetHexTypeID].radius = maxRadius;
+                                }
                             } else {
-                                hexTypes[targetHexTypeID].radius = maxRadius;
+                                if (hexTypes[targetHexTypeID].radius < maxRadius) {
+                                    hexTypes[targetHexTypeID].radius++;
+                                } else {
+                                    hexTypes[targetHexTypeID].radius = 0;
+                                }
                             }
-                        } else {
-                            if (hexTypes[targetHexTypeID].radius < maxRadius) {
-                                hexTypes[targetHexTypeID].radius++;
-                            } else {
-                                hexTypes[targetHexTypeID].radius = 0;
-                            }
+                            drawBoard();
                         }
-                        drawBoard();
                         hexTypeID = 0;
                     } else {
                         if (mouseMovingColor == 0) {
@@ -1320,6 +1325,16 @@ $(document).ready(function () {
     var undoboards;//used for undo
     var redoboards;//used for redo
     var thermos = [];
+    var solveMode = true;
+
+    function toggleSolveMode() {
+        solveMode = !solveMode;
+        if (solveMode) {
+            currentHexType = -1;
+        }
+        createTools();
+        drawBoard();
+    }
 
     var description;
 
@@ -2460,652 +2475,707 @@ $(document).ready(function () {
     var toolMargin = 5;
     var toolWidth = 30;
     var toolHeight = 30;
-    var toolColumns = 7;
     var toolBoxLeft = toolMargin + .5;//canvasW - .5 - (toolWidth + toolMargin) * toolColumns;
 
-    for (var i = 1; i < hexTypes.length; i++) {
-        var shortcutKey = "key_" + hexTypes[i].name;
-        if (shortcutKey)
+    function createTools() {
+        tools = [];
+
+
+        tools.push({
+            name: "Undo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to undo 10 steps at a time)",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function (ctrlKey, shiftKey) {
+                undoBoardChange(shiftKey ? 10 : 1);
+                drawBoard();
+            },
+            draw: "<",
+        });
+        tools.push({
+            name: "Redo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to redo 10 steps at a time)",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function (ctrlKey, shiftKey) {
+                redoBoardChange(shiftKey ? 10 : 1);
+                drawBoard();
+            },
+            draw: ">",
+        });
+
+        tools.push({
+            name: "Auto-unshade",
+            color: "lightgray",
+            click: function () {
+                registerBoardChange();
+                //from each shaded cell, shade off all None cells on all axes.
+                for (var x = 0; x < COLS; ++x) {
+                    for (var y = 0; y < ROWS; ++y) {
+                        let cell = getBoardCell([x, y]);
+                        if (cell && cell.hexTypeID == 3) {
+                            for (let dir = 0; dir < 6; dir++) {
+                                let neighborCellCoords = [cell.x, cell.y];
+                                let neighborCell = cell;
+                                while (neighborCell) {
+                                    neighborCellCoords = getNeighborHexCoords(neighborCellCoords, dir);
+                                    neighborCell = getBoardCell(neighborCellCoords);
+                                    if (neighborCell) {
+                                        if (neighborCell.hexTypeID == 1) {
+                                            setBoardHexType(neighborCellCoords, 2);
+                                        }
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                drawBoard();
+            },
+            draw: "//",
+        });
+
+        //tools.push({
+        //    name: "Thermo",
+        //    color: "lightgray",
+        //    click: function () {
+        //        currentTool = this.name;
+        //        drawBoard();
+        //    },
+        //    draw: function () {
+        //        if (currentTool == this.name) {
+        //            drawToolShadow(this);
+        //        }
+        //        drawString("T", this.x + 4.5, this.y + 3.5, "black");
+        //    }
+        //});
+
+        //tools.push({
+        //    name: "Flip Horizontally (Ctrl+click for Vertically).  This will reset the Undo/Redo.",
+        //    color: "lightgray",
+        //    //shortcutKey: "^up",
+        //    click: function (ctrlKey) {
+        //        let boardCopy = getBoardCopy(board);
+        //        for (let colIdx = 0; colIdx < COLS; colIdx++) {
+        //            for (let rowIdx = 0; rowIdx < ROWS; rowIdx++) {
+        //                if (ctrlKey) {
+        //                    if (colIdx % 2 == 0) {
+        //                        if (inBoard(colIdx, ROWS - rowIdx)) {
+        //                            board[colIdx][rowIdx] = boardCopy[colIdx][ROWS - rowIdx];
+        //                        }
+        //                    } else {
+        //                        if (inBoard(colIdx, ROWS - 1 - rowIdx)) {
+
+        //                            board[colIdx][rowIdx] = boardCopy[colIdx][ROWS - 1 - rowIdx];
+        //                        }
+        //                    }
+        //                } else {
+        //                    board[colIdx][rowIdx] = boardCopy[COLS - 1 - colIdx][rowIdx];
+        //                }
+        //            }
+        //        }
+        //        drawBoard();
+        //        importBoard();
+        //    },
+        //    draw: "><",
+        //});
+
+        //tools.push({
+        //    name: "Placeholder",
+        //    color: "lightgray",
+        //    //shortcutKey: "^up",
+        //    click: function () {
+        //    },
+        //    draw: "?",
+        //});
+
+        tools.push({
+            name: "Clear shading",
+            color: "lightgray",
+            shortcutKey: "delete",
+            click: function (ctrlKey) {
+                registerBoardChange();
+                for (var x = 0; x < COLS; ++x) {
+                    for (var y = 0; y < ROWS; ++y) {
+                        let cell = getBoardCell([x, y]);
+                        if (cell && cell.hexTypeID > 0 && cell.hexTypeID <= 3) {
+                            setBoardHexType([cell.x, cell.y], 1);
+                        }
+                    }
+                }
+                drawBoard();
+            },
+            draw: "X",
+        });
+        tools.push({
+            name: "Open as URL",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function () {
+                window.open("Sonari.html?boardDef=" + escape(getBoardDef()));
+            },
+            draw: "🖫",
+        });
+        tools.push({
+            name: solveMode ? "Edit mode" : "Solve mode",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function () {
+                toggleSolveMode();
+            },
+            draw: "✎",
+        });
+
+        if (!solveMode) {
+            for (var i = 4; i < hexTypes.length; i++) {
+                var shortcutKey = "key_" + hexTypes[i].name;
+                if (shortcutKey)
+
+                    tools.push({
+                        name: "",//"Draw: " + hexTypes[i].name,// + " (" + i.toString() + ")",
+                        hexType: i,
+                        color: hexTypes[i].color,
+                        symbol: hexTypes[i].symbol,
+                        shortcutKey: hexTypes[i].shortcutKey,//"key_" + hexTypes[i].name,
+                        click: function () {
+                            currentHexType = this.hexType;
+                            if (currentTool == "Thermo") {
+                                currentTool = "Pencil";
+                            }
+                            drawBoard();
+                        },
+                        draw: function () {
+                            if (currentHexType == this.hexType) {
+                                drawToolShadow(this);
+                            }
+                            drawString(this.symbol, this.x + this.width / 2 - 6.5, this.y + 3.5, "black");
+                        }
+                    });
+            }
+        }
+
+        //for (var i = 1; i <= 9; i++) {
+        //    tools.push({
+        //        name: "Number " + i + " (" + i.toString() + ")",
+        //        color: "gray",
+        //        symbol: i,
+        //        shortcutKey: "key_" + i,
+        //        click: function () {
+        //            currentHexType = this.hexType;
+        //            drawBoard();
+        //        },
+        //        draw: function () {
+        //            if (currentHexType == this.hexType) {
+        //                drawToolShadow(this);
+        //            }
+        //            drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
+        //        }
+        //    });
+        //}
+        if (!solveMode) {
 
             tools.push({
-                name: "",//"Draw: " + hexTypes[i].name,// + " (" + i.toString() + ")",
-                hexType: i,
-                color: hexTypes[i].color,
-                symbol: hexTypes[i].symbol,
-                shortcutKey: hexTypes[i].shortcutKey,//"key_" + hexTypes[i].name,
+                name: "Change board size",
+                color: "lightgray",
+                shortcutKey: "delete",
                 click: function () {
-                    currentHexType = this.hexType;
-                    if (currentTool == "Thermo") {
-                        currentTool = "Pencil";
+                    let sidelen = prompt("(Warning: this will delete everything off the board)\nNew board side length (3-11):", Math.ceil(COLS / 2));
+                    if (sidelen && Number.isInteger(Number(sidelen)) && Number(sidelen) >= 3 && Number(sidelen) <= 11) {
+                        COLS = Number(sidelen) * 2 - 1;
+                        ROWS = COLS;
+                        resetBoard();
+                        recalcDrawingOffsets();
+                        drawBoard();
                     }
+                },
+                draw: "⌬",
+            });
+
+
+            //tools.push({
+            //    name: "Pencil/Fill",
+            //    color: "lightgray",
+            //    click: function () {
+            //        if (currentTool == "Pencil") {
+            //            currentTool = "Fill";
+            //        } else {
+            //            currentTool = "Pencil";
+            //        }
+            //        drawBoard();
+            //    },
+            //    symbol: "⚫",
+            //    draw: function () {
+            //        if (currentTool == "Fill") {
+            //            var offsets = [[1, 3], [4, -1], [9, 1], [9, 5], [7, 7], [3, 7], [5, 3]];
+            //            drawToolShadow(this);
+            //            for (var i = 0; i < offsets.length; i++) {
+            //                drawString("⚫", this.x + .5 + offsets[i][0], this.y + .5 + offsets[i][1], "black");
+            //            }
+            //        } else if (currentTool == "Pencil") {
+            //            drawToolShadow(this);
+            //            drawString(this.symbol, this.x + this.width / 2 - 2.5, this.y + 3.5, "black");
+            //        } else {
+            //            drawString(this.symbol, this.x + this.width / 2 - 2.5, this.y + 3.5, "gray");
+            //        }
+            //    }
+            //});
+            //tools.push({
+            //    name: "Fill",
+            //    color: "lightgray",
+            //    click: function () {
+            //        currentTool = this.name;
+            //        drawBoard();
+            //    },
+            //    draw: function () {
+            //        if (currentTool == this.name) {
+            //            drawToolShadow(this);
+            //        }
+            //        var offsets = [[1, 3], [4, -1], [9, 1], [9, 5], [7, 7], [3, 7], [5, 3]];
+            //        for (var i = 0; i < offsets.length; i++) {
+            //            drawString("⚫", this.x + .5 + offsets[i][0], this.y + .5 + offsets[i][1], "black");
+            //        }
+            //    }
+            //});
+            tools.push({
+                name: "Find a solution for shaded cells (Ctrl+click to check all possible solutions)",
+                color: "lightgray",
+                //shortcutKey: "w",
+                click: function (ctrlKey, shiftKey) {
+                    //populate all possibilities on the grid as display data.
+
+                    //if (event.key == 'w') shiftKey = true;
+
+                    registerBoardChange();
+                    console.time("prep");
+
+                    var starCount = 1;//prompt("# of stars per line/region");
+                    if (starCount == "") return;
+                    starCount = Number(starCount);
+                    while (!Number.isInteger(starCount)) {
+                        starCount = prompt("# of stars per line/region (Must be a number):");
+                        if (starCount == "") return;
+                        starCount = Number(starCount);
+                    }
+
+                    //let starCount = 2;
+
+                    let verifyCount = 0;
+                    let setCount = 0;
+                    let revertCount = 0;
+                    let finalCheckCount = 0;
+                    let solBoardCount = 0;
+                    let maxSolutionBoards = 50;
+
+                    let finalCheckGroups = [];
+
+                    var solutionBoards = [];
+
+                    let processingStartTime = Date.now();
+                    let timeLimitExceeded = false;
+
+                    function starBattleSolver(flatBoard, cellList, startingIdx) {
+                        //for each cell, 
+                        //if cell has no number
+                        //check if it's valid to set cell to 2 (ON).  AKA check for other cells on the axes with value 2.
+                        //if it's valid, set cell = 2.  else set to 1 and move on.
+                        //at the end, check if it's valid.  Should be able to just go through columns to check, as by definition others will be correct.  If not, return false and recurse.
+                        //recurse: if it's good (aka all columns have exactly 2 stars), return true;
+                        //else, set value to 1, then go on to the next X.
+                        for (let i = startingIdx || 0, len = cellList.length; i < len; i++) {
+                            var cell = cellList[i];
+                            if (cell.hexTypeID == 1) {
+                                verifyCount++;
+
+                                let isPossibleStar = true;
+                                //let groupAvailability = [];
+                                for (let group of cell.sudokuCellGroups) {
+                                    //let availability = group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords);
+                                    //  groupAvailability.push(availability);
+                                    //if (availability < 1) {
+                                    if (group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords) < 1) {
+
+                                        isPossibleStar = false;
+                                        break;
+                                    }
+                                }
+                                if (isPossibleStar) {
+                                    cell.hexTypeID = 3;
+
+                                    setCount++;
+                                    if (starBattleSolver(flatBoard, cellList, i + 1)) {
+                                        return true;
+                                    } else {
+                                        cell.hexTypeID = 1;
+
+                                        revertCount++;
+                                        if (Date.now() - processingStartTime > 15000) {
+                                            if (timeLimitExceeded == false) {
+                                                alert("15 second time limit exceeded.  Try shading a few cells to get started.");
+                                                timeLimitExceeded = true;
+                                            }
+                                            return false;
+                                        }
+                                        //if (shiftKey) {
+                                        //    solutionBoards.push(JSON.stringify(flatBoard));
+                                        //    return true;
+                                        //}
+                                    }
+                                    //} else {
+                                    //    cell.number = 1;
+                                }
+                            }
+                        }
+
+                        //todo: better final check, showing that every line in each direction do have exactly starCount stars.
+                        //do final check that every star sees exactly N - 1 other stars.Surely there's a better way to do this, but oh well.
+                        finalCheckCount++;
+                        for (let group of finalCheckGroups) {
+                            let hasCells = false;
+                            let colStarCount = 0;
+                            for (let cell of group) {
+                                //if there are any cells, there must be starCount stars.
+                                if (cell.hexTypeID > 0) {
+                                    hasCells = true;
+                                    if (cell.hexTypeID == 3) {
+                                        colStarCount++;
+                                    }
+                                }
+                            }
+                            if (hasCells && colStarCount != starCount) {
+                                return false;
+                            }
+                        }
+
+                        //for (let i = 0, len = cellList.length; i < len; i++) {
+                        //    var cell = cellList[i];
+                        //    if (cell.hexTypeID > 0 && cell.number == 2) {
+                        //        for (let group of cell.sudokuCellGroups) {
+                        //            if (getNumStarsInGroup(flatBoard, group.cellCoords) + 1 != group.totalValue) {
+                        //                return false;
+                        //            }
+                        //        }
+                        //    }
+                        //}
+
+                        solBoardCount++;
+                        solutionBoards.push(JSON.stringify(flatBoard));
+                        if (!ctrlKey) {
+                            return true;
+                        } else {
+                            if (solutionBoards.length >= maxSolutionBoards) {
+                                //dedupe boards
+                                solutionBoards = dedupeArray(solutionBoards);
+
+                                //truly unique
+                                if (solutionBoards.length >= maxSolutionBoards) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+
+                    setStarBattleCellGroups(starCount);
+
+                    var flatBoard = getBoardCopy();
+                    let cellList = [];
+                    for (let i = 0; i < COLS; i++) {
+                        let colGroup = [];
+                        for (let j = 0; j < ROWS; j++) {
+                            let cell = flatBoard[i][j];
+                            if (cell.hexTypeID > 0) {
+                                cellList.push(cell);
+                                colGroup.push(cell);
+                            }
+                        }
+                        if (colGroup.length) {
+                            finalCheckGroups.push(colGroup);
+                        }
+                    }
+                    //northwest to southeast, part 1.
+                    for (let i = 0; i < COLS; i += 2) {
+                        let colGroup = [];
+                        let coords = [i, 0];
+                        while (inBoard(coords[0], coords[1])) {
+                            let cell = flatBoard[coords[0]][coords[1]];
+                            if (cell.hexTypeID > 0) {
+                                colGroup.push(cell);
+                            }
+                            coords = getNeighborHexCoords(coords, 0);
+                        }
+                        if (colGroup.length) {
+                            finalCheckGroups.push(colGroup);
+                        }
+                    }
+                    //northwest to southeast, part 2.
+                    for (let i = 1; i < ROWS; i++) {
+                        let colGroup = [];
+                        let coords = [0, i];
+                        while (inBoard(coords[0], coords[1])) {
+                            let cell = flatBoard[coords[0]][coords[1]];
+                            if (cell.hexTypeID > 0) {
+                                colGroup.push(cell);
+                            }
+                            coords = getNeighborHexCoords(coords, 0);
+                        }
+                        if (colGroup.length) {
+                            finalCheckGroups.push(colGroup);
+                        }
+                    }
+                    //southwest to northeast, part 1.
+                    for (let i = 1; i < COLS; i += 2) {
+                        let colGroup = [];
+                        let coords = [i, ROWS - 1];
+                        while (inBoard(coords[0], coords[1])) {
+                            let cell = flatBoard[coords[0]][coords[1]];
+                            if (cell.hexTypeID > 0) {
+                                colGroup.push(cell);
+                            }
+                            coords = getNeighborHexCoords(coords, 1);
+                        }
+                        if (colGroup.length) {
+                            finalCheckGroups.push(colGroup);
+                        }
+                    }
+                    //southwest to northeast, part 2.
+                    for (let i = 1; i < ROWS; i++) {
+                        let colGroup = [];
+                        let coords = [0, i];
+                        while (inBoard(coords[0], coords[1])) {
+                            let cell = flatBoard[coords[0]][coords[1]];
+                            if (cell.hexTypeID > 0) {
+                                colGroup.push(cell);
+                            }
+                            coords = getNeighborHexCoords(coords, 1);
+                        }
+                        if (colGroup.length) {
+                            finalCheckGroups.push(colGroup);
+                        }
+                    }
+
+                    //todo maybe: check northeast/southwest and northwest/southeast lines.
+
+                    //naively turn off cells that are already fulfilled.
+                    for (let group of finalCheckGroups) {
+                        let colStarCount = 0;
+                        for (let cell of group) {
+                            //if there are any cells, there must be starCount stars.
+                            if (cell.hexTypeID > 0) {
+                                if (cell.hexTypeID == 3) {
+                                    colStarCount++;
+                                    for (let ncoords of getAllNeighborHexCoords([cell.x, cell.y])) {
+                                        let c2 = getBoardCell(ncoords);
+                                        if (c2 && c2.hexTypeID > 0) {
+                                            c2.hexTypeID = 2;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (colStarCount == starCount) {
+                            for (let cell of group) {
+                                //if there are any cells, there must be starCount stars.
+                                if (cell.hexTypeID == 1) {
+                                    registerBoardChange();
+                                    let c = getBoardCell([cell.x, cell.y]);
+                                    c.hexTypeID = 2;
+                                }
+                            }
+                        }
+                    }
+
+
+                    //shuffleArray(cellList);
+
+                    console.timeEnd("prep");
+                    console.time("solve");
+                    starBattleSolver(flatBoard, cellList);
+                    if (timeLimitExceeded) {
+                        return;
+                    }
+                    console.timeEnd("solve");
+                    console.time("update");
+
+                    //todo: reduce possible solutionboards - for some reason it's allowing duplicates.
+                    //let jsonBoards = [];
+                    //for (var sboard in solutionboards) {
+                    //    jsonBoards = JSON.stringify(sboard);
+                    //}
+                    //solutionBoards = dedupeArray(jsonBoards);
+
+                    let unpackedSolutionBoards = [];
+                    for (var solBoard of solutionBoards) {
+                        unpackedSolutionBoards.push(JSON.parse(solBoard));
+                    }
+
+                    if (solutionBoards.length && solutionBoards.length != maxSolutionBoards) {
+                        for (let i = 0; i < COLS; i++) {
+                            for (let j = 0; j < ROWS; j++) {
+                                var cell = getBoardCell([i, j]);
+                                if (cell && cell.hexTypeID > 0 && cell.hexTypeID < 3) {
+                                    var isAlwaysShaded = true;
+                                    var isAlwaysUnshaded = true;
+                                    for (let solBoard of unpackedSolutionBoards) {
+                                        if (solBoard[i][j].hexTypeID == 3) {
+                                            isAlwaysUnshaded = false;
+                                        } else {
+                                            isAlwaysShaded = false;
+
+                                        }
+                                    }
+                                    if (isAlwaysShaded) {
+                                        setBoardHexType([i, j], 3);
+                                    } else if (isAlwaysUnshaded) {
+                                        setBoardHexType([i, j], 2);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    console.timeEnd("update");
+
+                    console.log("verifies:" + verifyCount);
+                    console.log("sets:" + setCount);
+                    console.log("reverts:" + revertCount);
+                    console.log("final checks:" + finalCheckCount);
+                    solBoardCount = solutionBoards.length;
+                    console.log("solution board count:" + solBoardCount);
+
+                    if (ctrlKey) {
+                        console.log(solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution(s)");
+                        alert("This shaded cell layout has " + solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution" + (solBoardCount == 1 ? "" : "s"));
+                    } else {
+                        if (solBoardCount == 0) {
+                            alert("This shaded cell layout has 0 solutions");
+                        }
+                    }
+
                     drawBoard();
                 },
-                draw: function () {
-                    if (currentHexType == this.hexType) {
-                        drawToolShadow(this);
-                    }
-                    drawString(this.symbol, this.x + this.width / 2 - 6.5, this.y + 3.5, "black");
-                }
+                draw: "✓",
             });
-    }
+        }
+        //place shading tools just before undo/redo
+        //        tools.push(tools.shift());
+        //        tools.push(tools.shift());
+        //        tools.push(tools.shift());
 
-    //for (var i = 1; i <= 9; i++) {
-    //    tools.push({
-    //        name: "Number " + i + " (" + i.toString() + ")",
-    //        color: "gray",
-    //        symbol: i,
-    //        shortcutKey: "key_" + i,
-    //        click: function () {
-    //            currentHexType = this.hexType;
-    //            drawBoard();
-    //        },
-    //        draw: function () {
-    //            if (currentHexType == this.hexType) {
-    //                drawToolShadow(this);
-    //            }
-    //            drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
-    //        }
-    //    });
-    //}
-    tools.push({
-        name: "Clear shading",
-        color: "lightgray",
-        shortcutKey: "delete",
-        click: function (ctrlKey) {
-            registerBoardChange();
-            for (var x = 0; x < COLS; ++x) {
-                for (var y = 0; y < ROWS; ++y) {
-                    let cell = getBoardCell([x, y]);
-                    if (cell && cell.hexTypeID > 0 && cell.hexTypeID <= 3) {
-                        setBoardHexType([cell.x, cell.y], 1);
-                    }
-                }
-            }
-            drawBoard();
-        },
-        draw: "X",
-    });
-    tools.push({
-        name: "Change board size",
-        color: "lightgray",
-        shortcutKey: "delete",
-        click: function () {
-            let sidelen = prompt("(Warning: this will delete everything off the board)\nNew board side length (3-11):", Math.ceil(COLS / 2));
-            if (sidelen && Number.isInteger(Number(sidelen)) && Number(sidelen) >= 3 && Number(sidelen) <= 11) {
-                COLS = Number(sidelen) * 2 - 1;
-                ROWS = COLS;
-                resetBoard();
-                recalcDrawingOffsets();
+        //tools.push({
+        //    name: "About",
+        //    color: "lightgray",
+        //    click: function () {
+        //        alert(
+        //            "Sonari setter/solver by BenceJoful\nVersion 0.0.1\nOriginal puzzle genre by Qinlux\n\nKeyboard shortcuts: Ctrl+z"
+        //        );
+        //    },
+        //    draw: "@",
+        //});
+        let solvingTool = {
+            name: "Solve: click to shade/unshade and modify ring sizes",
+            color: solvingGradient,
+            symbol: "",//"~",
+            shortcutKey: "+`",
+            click: function () {
+                currentHexType = -1;
                 drawBoard();
+            },
+            draw: function () {
+                if (currentHexType == -1) {
+                    drawToolShadow(this);
+                }
+                drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
+
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = "crimson";
+                setPathCoords(this.x + this.width / 10, this.y + this.height / 10, 10 / linelen);
+                ctx.stroke();
+                ctx.strokeStyle = "dodgerblue";
+                setPathCoords(this.x + this.width / 2.3, this.y + this.height / 2.3, 6 / linelen);
+                ctx.stroke();
+                ctx.lineWidth = 1;
+
             }
-        },
-        draw: "⌬",
-    });
+        }
+        if (!solveMode) {
+            tools.splice(6, 0, solvingTool);
+        }
+        let toolRowBreaks = [6, 13, 20, 22, 24];
+        let toolRowBreak = toolRowBreaks.shift();
+        //layout tools in columnar grid.
+        let toolX = toolBoxLeft;
+        let toolY = toolMargin - .5;
+        for (var i = 0; i < tools.length; i++) {
+            var tool = tools[i];
+            tool.height = toolHeight;
+            tool.width = toolWidth;
+            tool.x = toolX;
+            tool.y = toolY;
 
-    tools.push({
-        name: "Auto-unshade",
-        color: "lightgray",
-        click: function () {
-            registerBoardChange();
-            //from each shaded cell, shade off all None cells on all axes.
-            for (var x = 0; x < COLS; ++x) {
-                for (var y = 0; y < ROWS; ++y) {
-                    let cell = getBoardCell([x, y]);
-                    if (cell && cell.hexTypeID == 3) {
-                        for (let dir = 0; dir < 6; dir++) {
-                            let neighborCellCoords = [cell.x, cell.y];
-                            let neighborCell = cell;
-                            while (neighborCell) {
-                                neighborCellCoords = getNeighborHexCoords(neighborCellCoords, dir);
-                                neighborCell = getBoardCell(neighborCellCoords);
-                                if (neighborCell) {
-                                    if (neighborCell.hexTypeID == 1) {
-                                        setBoardHexType(neighborCellCoords, 2);
-                                    }
-                                } else {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
+            toolX += toolMargin + toolWidth;
+            if (i == toolRowBreak) {
+                toolX = toolBoxLeft;
+                toolY += toolMargin + toolHeight;
+                toolRowBreak = toolRowBreaks.shift();
             }
+        }
 
-            drawBoard();
-        },
-        draw: "//",
-    });
+        ////layout tools in columnar grid.
+        //for (var i = 0; i < tools.length; i++) {
+        //    var tool = tools[i];
+        //    tool.x = toolBoxLeft + (toolWidth + toolMargin) * (i % toolColumns);
+        //    tool.y = toolMargin - .5 + (toolHeight + toolMargin) * (Math.floor(i / toolColumns));
+        //    tool.height = toolHeight;
+        //    tool.width = toolWidth;
+        //}
 
-    //tools.push({
-    //    name: "Pencil/Fill",
-    //    color: "lightgray",
-    //    click: function () {
-    //        if (currentTool == "Pencil") {
-    //            currentTool = "Fill";
-    //        } else {
-    //            currentTool = "Pencil";
-    //        }
-    //        drawBoard();
-    //    },
-    //    symbol: "⚫",
-    //    draw: function () {
-    //        if (currentTool == "Fill") {
-    //            var offsets = [[1, 3], [4, -1], [9, 1], [9, 5], [7, 7], [3, 7], [5, 3]];
-    //            drawToolShadow(this);
-    //            for (var i = 0; i < offsets.length; i++) {
-    //                drawString("⚫", this.x + .5 + offsets[i][0], this.y + .5 + offsets[i][1], "black");
-    //            }
-    //        } else if (currentTool == "Pencil") {
-    //            drawToolShadow(this);
-    //            drawString(this.symbol, this.x + this.width / 2 - 2.5, this.y + 3.5, "black");
-    //        } else {
-    //            drawString(this.symbol, this.x + this.width / 2 - 2.5, this.y + 3.5, "gray");
-    //        }
-    //    }
-    //});
-    //tools.push({
-    //    name: "Fill",
-    //    color: "lightgray",
-    //    click: function () {
-    //        currentTool = this.name;
-    //        drawBoard();
-    //    },
-    //    draw: function () {
-    //        if (currentTool == this.name) {
-    //            drawToolShadow(this);
-    //        }
-    //        var offsets = [[1, 3], [4, -1], [9, 1], [9, 5], [7, 7], [3, 7], [5, 3]];
-    //        for (var i = 0; i < offsets.length; i++) {
-    //            drawString("⚫", this.x + .5 + offsets[i][0], this.y + .5 + offsets[i][1], "black");
-    //        }
-    //    }
-    //});
-    tools.push({
-        name: "Find a solution for shaded cells (Ctrl+click to check all possible solutions)",
-        color: "lightgray",
-        //shortcutKey: "w",
-        click: function (ctrlKey, shiftKey) {
-            //populate all possibilities on the grid as display data.
+        //create gradient for first tool, the solving tool.
+        if (!solveMode) {
 
-            //if (event.key == 'w') shiftKey = true;
+        var solvingGradient = ctx.createLinearGradient(solvingTool.x,
+            solvingTool.y,
+            solvingTool.x + solvingTool.width,
+            solvingTool.y + solvingTool.height);
 
-            registerBoardChange();
-            console.time("prep");
+        solvingGradient.addColorStop(.3, "#DEB887");
+        solvingGradient.addColorStop(0.35, "#8b4513");
+        solvingGradient.addColorStop(0.65, "#8b4513");
+        solvingGradient.addColorStop(.7, "#FFFFFF");
+        solvingTool.color = solvingGradient;
+        }
 
-            var starCount = 1;//prompt("# of stars per line/region");
-            if (starCount == "") return;
-            starCount = Number(starCount);
-            while (!Number.isInteger(starCount)) {
-                starCount = prompt("# of stars per line/region (Must be a number):");
-                if (starCount == "") return;
-                starCount = Number(starCount);
-            }
+        //var descriptionTool = {
+        //    name: "Description",
+        //    color: "#DDDDDD",
+        //    click: function () {
+        //        var d = "~";
+        //        var promptText = "Description";
+        //        while (d.indexOf("~") > -1) {
+        //            d = prompt(promptText, description);
+        //            if (d == null) { return; }
+        //            promptText = "Description (cannot contain '~'):";
+        //        }
+        //        registerBoardChange();
+        //        description = d;
+        //        drawBoard();
+        //    },
+        //    draw: function () {
+        //        drawString(description, this.x + 1.5, this.y + 1.5, "black", null, this.width);
+        //    },
+        //    x: tools[0].x,
+        //    y: tools[tools.length - 1].y + toolHeight + toolMargin,//toolMargin - .5,
+        //    height: tools[tools.length - 1].y + toolHeight + .5,
+        //    //width: canvasW - .5 - (toolWidth + toolMargin,
+        //    width: canvasW - .5 - tools[0].x - toolMargin
+        //}
+        //tools.push(descriptionTool);
 
-            //let starCount = 2;
-
-            let verifyCount = 0;
-            let setCount = 0;
-            let revertCount = 0;
-            let finalCheckCount = 0;
-            let solBoardCount = 0;
-            let maxSolutionBoards = 50;
-
-            let finalCheckGroups = [];
-
-            var solutionBoards = [];
-
-            let processingStartTime = Date.now();
-            let timeLimitExceeded = false;
-
-            function starBattleSolver(flatBoard, cellList, startingIdx) {
-                //for each cell, 
-                //if cell has no number
-                //check if it's valid to set cell to 2 (ON).  AKA check for other cells on the axes with value 2.
-                //if it's valid, set cell = 2.  else set to 1 and move on.
-                //at the end, check if it's valid.  Should be able to just go through columns to check, as by definition others will be correct.  If not, return false and recurse.
-                //recurse: if it's good (aka all columns have exactly 2 stars), return true;
-                //else, set value to 1, then go on to the next X.
-                for (let i = startingIdx || 0, len = cellList.length; i < len; i++) {
-                    var cell = cellList[i];
-                    if (cell.hexTypeID == 1) {
-                        verifyCount++;
-
-                        let isPossibleStar = true;
-                        //let groupAvailability = [];
-                        for (let group of cell.sudokuCellGroups) {
-                            //let availability = group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords);
-                            //  groupAvailability.push(availability);
-                            //if (availability < 1) {
-                            if (group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords) < 1) {
-
-                                isPossibleStar = false;
-                                break;
-                            }
-                        }
-                        if (isPossibleStar) {
-                            cell.hexTypeID = 3;
-
-                            setCount++;
-                            if (starBattleSolver(flatBoard, cellList, i + 1)) {
-                                return true;
-                            } else {
-                                cell.hexTypeID = 1;
-
-                                revertCount++;
-                                if (Date.now() - processingStartTime > 15000) {
-                                    if (timeLimitExceeded == false) {
-                                        alert("15 second time limit exceeded.  Try shading a few cells to get started.");
-                                        timeLimitExceeded = true;
-                                    }
-                                    return false;
-                                }
-                                //if (shiftKey) {
-                                //    solutionBoards.push(JSON.stringify(flatBoard));
-                                //    return true;
-                                //}
-                            }
-                            //} else {
-                            //    cell.number = 1;
-                        }
-                    }
-                }
-
-                //todo: better final check, showing that every line in each direction do have exactly starCount stars.
-                //do final check that every star sees exactly N - 1 other stars.Surely there's a better way to do this, but oh well.
-                finalCheckCount++;
-                for (let group of finalCheckGroups) {
-                    let hasCells = false;
-                    let colStarCount = 0;
-                    for (let cell of group) {
-                        //if there are any cells, there must be starCount stars.
-                        if (cell.hexTypeID > 0) {
-                            hasCells = true;
-                            if (cell.hexTypeID == 3) {
-                                colStarCount++;
-                            }
-                        }
-                    }
-                    if (hasCells && colStarCount != starCount) {
-                        return false;
-                    }
-                }
-
-                //for (let i = 0, len = cellList.length; i < len; i++) {
-                //    var cell = cellList[i];
-                //    if (cell.hexTypeID > 0 && cell.number == 2) {
-                //        for (let group of cell.sudokuCellGroups) {
-                //            if (getNumStarsInGroup(flatBoard, group.cellCoords) + 1 != group.totalValue) {
-                //                return false;
-                //            }
-                //        }
-                //    }
-                //}
-
-                solBoardCount++;
-                solutionBoards.push(JSON.stringify(flatBoard));
-                if (!ctrlKey) {
-                    return true;
-                } else {
-                    if (solutionBoards.length >= maxSolutionBoards) {
-                        //dedupe boards
-                        solutionBoards = dedupeArray(solutionBoards);
-
-                        //truly unique
-                        if (solutionBoards.length >= maxSolutionBoards) {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            setStarBattleCellGroups(starCount);
-
-            var flatBoard = getBoardCopy();
-            let cellList = [];
-            for (let i = 0; i < COLS; i++) {
-                let colGroup = [];
-                for (let j = 0; j < ROWS; j++) {
-                    let cell = flatBoard[i][j];
-                    if (cell.hexTypeID > 0) {
-                        cellList.push(cell);
-                        colGroup.push(cell);
-                    }
-                }
-                if (colGroup.length) {
-                    finalCheckGroups.push(colGroup);
-                }
-            }
-            //northwest to southeast, part 1.
-            for (let i = 0; i < COLS; i += 2) {
-                let colGroup = [];
-                let coords = [i, 0];
-                while (inBoard(coords[0], coords[1])) {
-                    let cell = flatBoard[coords[0]][coords[1]];
-                    if (cell.hexTypeID > 0) {
-                        colGroup.push(cell);
-                    }
-                    coords = getNeighborHexCoords(coords, 0);
-                }
-                if (colGroup.length) {
-                    finalCheckGroups.push(colGroup);
-                }
-            }
-            //northwest to southeast, part 2.
-            for (let i = 1; i < ROWS; i++) {
-                let colGroup = [];
-                let coords = [0, i];
-                while (inBoard(coords[0], coords[1])) {
-                    let cell = flatBoard[coords[0]][coords[1]];
-                    if (cell.hexTypeID > 0) {
-                        colGroup.push(cell);
-                    }
-                    coords = getNeighborHexCoords(coords, 0);
-                }
-                if (colGroup.length) {
-                    finalCheckGroups.push(colGroup);
-                }
-            }
-            //southwest to northeast, part 1.
-            for (let i = 1; i < COLS; i += 2) {
-                let colGroup = [];
-                let coords = [i, ROWS - 1];
-                while (inBoard(coords[0], coords[1])) {
-                    let cell = flatBoard[coords[0]][coords[1]];
-                    if (cell.hexTypeID > 0) {
-                        colGroup.push(cell);
-                    }
-                    coords = getNeighborHexCoords(coords, 1);
-                }
-                if (colGroup.length) {
-                    finalCheckGroups.push(colGroup);
-                }
-            }
-            //southwest to northeast, part 2.
-            for (let i = 1; i < ROWS; i++) {
-                let colGroup = [];
-                let coords = [0, i];
-                while (inBoard(coords[0], coords[1])) {
-                    let cell = flatBoard[coords[0]][coords[1]];
-                    if (cell.hexTypeID > 0) {
-                        colGroup.push(cell);
-                    }
-                    coords = getNeighborHexCoords(coords, 1);
-                }
-                if (colGroup.length) {
-                    finalCheckGroups.push(colGroup);
-                }
-            }
-
-            //todo maybe: check northeast/southwest and northwest/southeast lines.
-
-            //naively turn off cells that are already fulfilled.
-            for (let group of finalCheckGroups) {
-                let colStarCount = 0;
-                for (let cell of group) {
-                    //if there are any cells, there must be starCount stars.
-                    if (cell.hexTypeID > 0) {
-                        if (cell.hexTypeID == 3) {
-                            colStarCount++;
-                            for (let ncoords of getAllNeighborHexCoords([cell.x, cell.y])) {
-                                let c2 = getBoardCell(ncoords);
-                                if (c2 && c2.hexTypeID > 0) {
-                                    c2.hexTypeID = 2;
-                                }
-                            }
-                        }
-                    }
-                }
-                if (colStarCount == starCount) {
-                    for (let cell of group) {
-                        //if there are any cells, there must be starCount stars.
-                        if (cell.hexTypeID == 1) {
-                            registerBoardChange();
-                            let c = getBoardCell([cell.x, cell.y]);
-                            c.hexTypeID = 2;
-                        }
-                    }
-                }
-            }
-
-
-            //shuffleArray(cellList);
-
-            console.timeEnd("prep");
-            console.time("solve");
-            starBattleSolver(flatBoard, cellList);
-            if (timeLimitExceeded) {
-                return;
-            }
-            console.timeEnd("solve");
-            console.time("update");
-
-            //todo: reduce possible solutionboards - for some reason it's allowing duplicates.
-            //let jsonBoards = [];
-            //for (var sboard in solutionboards) {
-            //    jsonBoards = JSON.stringify(sboard);
-            //}
-            //solutionBoards = dedupeArray(jsonBoards);
-
-            let unpackedSolutionBoards = [];
-            for (var solBoard of solutionBoards) {
-                unpackedSolutionBoards.push(JSON.parse(solBoard));
-            }
-
-            if (solutionBoards.length && solutionBoards.length != maxSolutionBoards) {
-                for (let i = 0; i < COLS; i++) {
-                    for (let j = 0; j < ROWS; j++) {
-                        var cell = getBoardCell([i, j]);
-                        if (cell && cell.hexTypeID > 0 && cell.hexTypeID < 3) {
-                            var isAlwaysShaded = true;
-                            var isAlwaysUnshaded = true;
-                            for (let solBoard of unpackedSolutionBoards) {
-                                if (solBoard[i][j].hexTypeID == 3) {
-                                    isAlwaysUnshaded = false;
-                                } else {
-                                    isAlwaysShaded = false;
-
-                                }
-                            }
-                            if (isAlwaysShaded) {
-                                setBoardHexType([i, j], 3);
-                            } else if (isAlwaysUnshaded) {
-                                setBoardHexType([i, j], 2);
-                            }
-                        }
-                    }
-                }
-            }
-
-            console.timeEnd("update");
-
-            console.log("verifies:" + verifyCount);
-            console.log("sets:" + setCount);
-            console.log("reverts:" + revertCount);
-            console.log("final checks:" + finalCheckCount);
-            solBoardCount = solutionBoards.length;
-            console.log("solution board count:" + solBoardCount);
-
-            if (ctrlKey) {
-                console.log(solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution(s)");
-                alert("This shaded cell layout has " + solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution" + (solBoardCount == 1 ? "" : "s"));
-            } else {
-                if (solBoardCount == 0) {
-                    alert("This shaded cell layout has 0 solutions");
-                }
-            }
-
-            drawBoard();
-        },
-        draw: "✓",
-    });
-
-    //tools.push({
-    //    name: "Thermo",
-    //    color: "lightgray",
-    //    click: function () {
-    //        currentTool = this.name;
-    //        drawBoard();
-    //    },
-    //    draw: function () {
-    //        if (currentTool == this.name) {
-    //            drawToolShadow(this);
-    //        }
-    //        drawString("T", this.x + 4.5, this.y + 3.5, "black");
-    //    }
-    //});
-
-    //tools.push({
-    //    name: "Flip Horizontally (Ctrl+click for Vertically).  This will reset the Undo/Redo.",
-    //    color: "lightgray",
-    //    //shortcutKey: "^up",
-    //    click: function (ctrlKey) {
-    //        let boardCopy = getBoardCopy(board);
-    //        for (let colIdx = 0; colIdx < COLS; colIdx++) {
-    //            for (let rowIdx = 0; rowIdx < ROWS; rowIdx++) {
-    //                if (ctrlKey) {
-    //                    if (colIdx % 2 == 0) {
-    //                        if (inBoard(colIdx, ROWS - rowIdx)) {
-    //                            board[colIdx][rowIdx] = boardCopy[colIdx][ROWS - rowIdx];
-    //                        }
-    //                    } else {
-    //                        if (inBoard(colIdx, ROWS - 1 - rowIdx)) {
-
-    //                            board[colIdx][rowIdx] = boardCopy[colIdx][ROWS - 1 - rowIdx];
-    //                        }
-    //                    }
-    //                } else {
-    //                    board[colIdx][rowIdx] = boardCopy[COLS - 1 - colIdx][rowIdx];
-    //                }
-    //            }
-    //        }
-    //        drawBoard();
-    //        importBoard();
-    //    },
-    //    draw: "><",
-    //});
-
-    //tools.push({
-    //    name: "Placeholder",
-    //    color: "lightgray",
-    //    //shortcutKey: "^up",
-    //    click: function () {
-    //    },
-    //    draw: "?",
-    //});
-
-
-    tools.push({
-        name: "Open as URL",
-        color: "lightgray",
-        //shortcutKey: "^up",
-        click: function () {
-            window.open("Sonari.html?boardDef=" + escape(getBoardDef()));
-        },
-        draw: "🖫",
-    });
-
-    //place shading tools just before undo/redo
-    tools.push(tools.shift());
-    tools.push(tools.shift());
-    tools.push(tools.shift());
-
-    tools.push({
-        name: "Undo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to undo 10 steps at a time)",
-        color: "lightgray",
-        //shortcutKey: "^up",
-        click: function (ctrlKey, shiftKey) {
-            undoBoardChange(shiftKey ? 10 : 1);
-            drawBoard();
-        },
-        draw: "<",
-    });
-    tools.push({
-        name: "Redo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to redo 10 steps at a time)",
-        color: "lightgray",
-        //shortcutKey: "^up",
-        click: function (ctrlKey, shiftKey) {
-            redoBoardChange(shiftKey ? 10 : 1);
-            drawBoard();
-        },
-        draw: ">",
-    });
-
-    //tools.push({
-    //    name: "About",
-    //    color: "lightgray",
-    //    click: function () {
-    //        alert(
-    //            "Sonari setter/solver by BenceJoful\nVersion 0.0.1\nOriginal puzzle genre by Qinlux\n\nKeyboard shortcuts: Ctrl+z"
-    //        );
-    //    },
-    //    draw: "@",
-    //});
-    let solvingTool = {
-        name: "Solve: click to shade/unshade and modify ring sizes",
-        color: solvingGradient,
-        symbol: "",//"~",
-        shortcutKey: "+`",
-        click: function () {
-            currentHexType = -1;
-            drawBoard();
-        },
-        draw: function () {
-            if (currentHexType == -1) {
-                drawToolShadow(this);
-            }
-            drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
-
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = "crimson";
-            setPathCoords(this.x + this.width / 10, this.y + this.height / 10, 10 / linelen);
-            ctx.stroke();
-            ctx.strokeStyle = "dodgerblue";
-            setPathCoords(this.x + this.width / 2.3, this.y + this.height / 2.3, 6 / linelen);
-            ctx.stroke();
+        for (var i = 0; i < tools.length; i++) {
+            var tool = tools[i];
+            addMouseOverText(tool.name, "tool", tool.x, tool.y, tool.x + tool.width, tool.y + tool.height);
         }
     }
-    tools.push(solvingTool);
-    let toolRowBreaks = [6, 13, 18, 21, 23];
-    let toolRowBreak = toolRowBreaks.shift();
-    //layout tools in columnar grid.
-    let toolX = toolBoxLeft;
-    let toolY = toolMargin - .5;
-    for (var i = 0; i < tools.length; i++) {
-        var tool = tools[i];
-        tool.height = toolHeight;
-        tool.width = toolWidth;
-        tool.x = toolX;
-        tool.y = toolY;
-
-        toolX += toolMargin + toolWidth;
-        if (i == toolRowBreak) {
-            toolX = toolBoxLeft;
-            toolY += toolMargin + toolHeight;
-            toolRowBreak = toolRowBreaks.shift();
-        }
-    }
-
-    ////layout tools in columnar grid.
-    //for (var i = 0; i < tools.length; i++) {
-    //    var tool = tools[i];
-    //    tool.x = toolBoxLeft + (toolWidth + toolMargin) * (i % toolColumns);
-    //    tool.y = toolMargin - .5 + (toolHeight + toolMargin) * (Math.floor(i / toolColumns));
-    //    tool.height = toolHeight;
-    //    tool.width = toolWidth;
-    //}
-
-    //create gradient for first tool, the solving tool.
-    var solvingGradient = ctx.createLinearGradient(solvingTool.x,
-        solvingTool.y,
-        solvingTool.x + solvingTool.width,
-        solvingTool.y + solvingTool.height);
-
-    solvingGradient.addColorStop(.3, "#DEB887");
-    solvingGradient.addColorStop(0.35, "#8b4513");
-    solvingGradient.addColorStop(0.65, "#8b4513");
-    solvingGradient.addColorStop(.7, "#FFFFFF");
-    solvingTool.color = solvingGradient;
-
+    createTools();
     function promptDescription() {
         var d = "~";
         var promptText = "Description";
@@ -3119,38 +3189,6 @@ $(document).ready(function () {
         $("#hTitle").text(description);
         drawBoard();
     }
-
-    //var descriptionTool = {
-    //    name: "Description",
-    //    color: "#DDDDDD",
-    //    click: function () {
-    //        var d = "~";
-    //        var promptText = "Description";
-    //        while (d.indexOf("~") > -1) {
-    //            d = prompt(promptText, description);
-    //            if (d == null) { return; }
-    //            promptText = "Description (cannot contain '~'):";
-    //        }
-    //        registerBoardChange();
-    //        description = d;
-    //        drawBoard();
-    //    },
-    //    draw: function () {
-    //        drawString(description, this.x + 1.5, this.y + 1.5, "black", null, this.width);
-    //    },
-    //    x: tools[0].x,
-    //    y: tools[tools.length - 1].y + toolHeight + toolMargin,//toolMargin - .5,
-    //    height: tools[tools.length - 1].y + toolHeight + .5,
-    //    //width: canvasW - .5 - (toolWidth + toolMargin,
-    //    width: canvasW - .5 - tools[0].x - toolMargin
-    //}
-    //tools.push(descriptionTool);
-
-    for (var i = 0; i < tools.length; i++) {
-        var tool = tools[i];
-        addMouseOverText(tool.name, "tool", tool.x, tool.y, tool.x + tool.width, tool.y + tool.height);
-    }
-
     //check if there's a board Def in the URL
     const urlParams = new URLSearchParams(window.location.search);
     let boardDef = urlParams.get('boardDef')
