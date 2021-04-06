@@ -6,7 +6,6 @@
  * Answer check
  * colorblind mode: small leters nestled into the crook of the 
  * Mobile friendly - better aspect ratio, more responsive controls, no zooming in.
- * save ring radius to url.
  * Help section with rules and interface guide.
  * Clues on intersections
 */
@@ -89,7 +88,6 @@ $(document).ready(function () {
                 setBoardHexType([x, y], 0);
             }
         }
-        //todo: draw a starting hex, centered on ROWS/2,COLS/2.
         var centerColX = Math.floor(COLS / 2);
 
         let coordsWest = [centerColX, 0];
@@ -114,17 +112,7 @@ $(document).ready(function () {
         $("#hTitle").text(description);
         undoboards = [];
         redoboards = [];
-        resetBoardDisplay();
 
-    }
-    function resetBoardDisplay() {
-        boardDisplay = [];
-        for (var x = 0; x < COLS; ++x) {
-            boardDisplay[x] = [];
-            for (var y = 0; y < ROWS; ++y) {
-                boardDisplay[x][y] = "";
-            }
-        }
     }
 
     function importBoard() {
@@ -136,7 +124,10 @@ $(document).ready(function () {
         resetBoard();
         description = boardDef.shift();
         $("#hTitle").text(description);
-        thermos = JSON.parse(boardDef.shift());
+        let ringRadiusList = JSON.parse(boardDef.shift());
+        for (var i = 0; i < ringRadiusList.length; i++) {
+            hexTypes[i].radius = ringRadiusList[i];
+        }
         var lines = boardDef[0].replace(/\./g, "@").split(";");
         //for each line, get the first 4 characters, convert to integer, put it in board.
         for (var i = 0; i < lines.length; i++) {
@@ -172,7 +163,6 @@ $(document).ready(function () {
             }
         }
 
-        let drawStrings = [];
         var filledBlocks = [];
         var minX = COLS;
         var minY = ROWS;
@@ -213,66 +203,22 @@ $(document).ready(function () {
             drawBlock(x, y, null, null, null, true);
         }
         ctx.shadowBlur = 0;
+        let clueCells = [];
+        for (var i = 0; i < filledBlocks.length; i++) {
+            var x = filledBlocks[i][0];
+            var y = filledBlocks[i][1];
+            var cell = board[x][y];
 
-        if (filledBlocks.length > 0) {
-
-            for (var i = 0; i < filledBlocks.length; i++) {
-                var x = filledBlocks[i][0];
-                var y = filledBlocks[i][1];
-                var cell = board[x][y];
-                var hexTypeID = cell.hexTypeID;
-                var hexType = hexTypes[hexTypeID];
-
-                var coords = drawBlock(x, y, hexType.color);
-                var displayValue = "";
-                if (cell.number) {
-                    if (cell.number == 7) {
-                        displayValue = " 0";
-                    } else {
-                        displayValue = " " + cell.number.toString();
-                    }
-                    if (boardDisplay[x][y]) {
-                        displayValue += ": " + boardDisplay[x][y];
-                    }
-                } else {
-                    displayValue = boardDisplay[x][y];
-                }
-
-                drawStrings.push([displayValue.substr(0, 3), Math.round(coords[0] + HEX_W / 2 - linelen / 3), Math.round(coords[1] + HEX_H / 2 - 12 + linelen / 8), "black"]);
-
-                //addMouseOverText(hexType.name + " (" + x + "," + y + "): " + boardDisplay[x][y], "board", coords[0] + 6, coords[1] + 3, coords[0] + 5 + 16, coords[1] + 3 + 16);
-                //draw bounding box:
-                //ctx.shadowBlur = 0; ctx.lineWidth = 1; ctx.strokeRect(coords[0] + 5, coords[1] + 3, 16, 16);
-
+            if (cell.hexTypeID > 3) {
+                //draw these later so they aren't obscured by rings
+                clueCells.push(cell);
+            } else {
+                drawBlock(x, y, hexTypes[cell.hexTypeID].color);
             }
         }
         //reset drawing context
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'black';
-
-        for (var thermo of thermos) {
-            //draw bulb
-            var thermocoords = thermo[0];
-            var [drawX, drawY] = getHexCenter(thermocoords[0], thermocoords[1]);
-            ctx.fillStyle = "rgba(150,150,150,100)";
-            ctx.beginPath();
-            ctx.arc(drawX, drawY, HEX_H / 3, 0, 2 * Math.PI);
-            ctx.fill();
-
-            ctx.strokeStyle = "rgba(150,150,150,100)";
-            ctx.lineWidth = 8;
-            ctx.beginPath();
-            ctx.moveTo(drawX, drawY);
-            for (let tidx = 1; tidx < thermo.length; tidx++) {
-                let nextthermocoords = thermo[tidx];
-                //draw a line from prev to next.
-                [drawX, drawY] = getHexCenter(nextthermocoords[0], nextthermocoords[1]);
-                ctx.lineTo(drawX, drawY);
-                thermocoords = nextthermocoords;
-
-            }
-            ctx.stroke();
-        }
 
         //draw rings
         //get all cells of that radius and draw rings around them.
@@ -318,6 +264,7 @@ $(document).ready(function () {
                 }
             }
         }
+
         //so, ringLines will be a dictionary of encodedCoords, List<color> which allows duplicates.
         const segmentCount = 8;
         ctx.lineWidth = 6;
@@ -328,8 +275,6 @@ $(document).ready(function () {
             [ringLine.x2, ringLine.y2] = getHexCenter(ringLine.x2, ringLine.y2);
 
             ctx.beginPath();
-            //ctx.arc(ringLine.x1, ringLine.y1, ctx.lineWidth / 2, 0, Math.PI * 2);
-            //ctx.arc(ringLine.x2, ringLine.y2, ctx.lineWidth / 2, 0, Math.PI * 2);
             ctx.fillStyle = colors[0];
             ctx.fill();
 
@@ -350,85 +295,26 @@ $(document).ready(function () {
                     ctx.lineTo(ringLine.x1 * ratio + ringLine.x2 * (1 - ratio), Math.round(ringLine.y1 * ratio + ringLine.y2 * (1 - ratio)));
                     ctx.stroke();
                 }
-                //offset: if vertical, offset horizontally.  else, offset vertically.
-                //let xOff = 0;
-                //let yOff = 0;
-                //let xOffIncrement = 0;
-                //let yOffIncrement = 0;
-                //if (ringLine.x1 == ringLine.x2) {
-                //    //offset horizontally
-                //    //xOff = -ctx.lineWidth * 4 / colors.length;
-                //    //xOffIncrement = ctx.lineWidth;
-                //    xOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
-                //    xOffIncrement = -ctx.lineWidth;
-                //} else {
-                //    //offset vertically;
-                //    yOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
-                //    yOffIncrement = -ctx.lineWidth;
-                //}
-
-                //for (let color of colors) {
-                //    ctx.strokeStyle = color;
-
-                //    ctx.beginPath();
-                //    ctx.lineTo(ringLine.x1 + xOff, ringLine.y1 + yOff);
-                //    ctx.lineTo(ringLine.x2 + xOff, ringLine.y2 + yOff);
-                //    ctx.stroke();
-                //    ctx.arc(ringLine.x1 + xOff, ringLine.y1 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
-                //    ctx.arc(ringLine.x2 + xOff, ringLine.y2 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
-                //    ctx.fillStyle = color;
-                //    ctx.fill();
-                //    xOff += xOffIncrement;
-                //    yOff += yOffIncrement;
-                //    }
             }
         }
-        //for (let ringLine in ringLines) {
-        //    let colors = ringLines[ringLine];
-        //    ringLine = JSON.parse(ringLine);
-        //    [ringLine.x1, ringLine.y1] = getHexCenter(ringLine.x1, ringLine.y1);
-        //    [ringLine.x2, ringLine.y2] = getHexCenter(ringLine.x2, ringLine.y2);
-        //    ctx.lineWidth = 8 / colors.length;
-        //    //offset: if vertical, offset horizontally.  else, offset vertically.
-        //    let xOff = 0;
-        //    let yOff = 0;
-        //    let xOffIncrement = 0;
-        //    let yOffIncrement = 0;
-        //    if (ringLine.x1 == ringLine.x2) {
-        //        //offset horizontally
-        //        //xOff = -ctx.lineWidth * 4 / colors.length;
-        //        //xOffIncrement = ctx.lineWidth;
-        //        xOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
-        //        xOffIncrement = -ctx.lineWidth;
-        //    } else {
-        //        //offset vertically;
-        //        yOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
-        //        yOffIncrement = -ctx.lineWidth;
-        //    }
+        //Draw clues now, so they aren't obscured by rings 
+        for (let cell of clueCells) {
+            let hexType = hexTypes[cell.hexTypeID];
+            let coords = drawBlock(cell.x, cell.y, hexType.color);
+            if (cell.number) {
+                //draw number
+                ctx.font = linelen + 'px sans-serif';
+                drawString(cell.number % 7, Math.round(coords[0] + HEX_W / 2), Math.round(coords[1] + HEX_H / 2 - 12 + linelen / 8), "black");
 
-        //    for (let color of colors) {
-        //        ctx.strokeStyle = color;
-
-        //        ctx.beginPath();
-        //        ctx.lineTo(ringLine.x1 + xOff, ringLine.y1 + yOff);
-        //        ctx.lineTo(ringLine.x2 + xOff, ringLine.y2 + yOff);
-        //        ctx.stroke();
-        //        ctx.arc(ringLine.x1 + xOff, ringLine.y1 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
-        //        ctx.arc(ringLine.x2 + xOff, ringLine.y2 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
-        //        ctx.fillStyle = color;
-        //        ctx.fill();
-        //        xOff += xOffIncrement;
-        //        yOff += yOffIncrement;
-        //    }
-        //}
+                //draw colorblind-friendly letter.
+                ctx.font = linelen / 2 + 'px sans-serif';
+                drawString(hexType.symbol, Math.round(coords[0] + HEX_W / 2 - linelen / 2), Math.round(coords[1] + HEX_H / 2 - 12), "black");
+            }
+        }
+        ctx.font = '20px sans-serif';
 
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'black';
-        ctx.font = linelen + 'px sans-serif';
-        for (let [s, x, y, c] of drawStrings) {
-            drawString(s, x, y, c);
-        }
-        ctx.font = '20px sans-serif';
 
         drawToolbox();
 
@@ -467,7 +353,11 @@ $(document).ready(function () {
         }
         lines.length = boardHeight + 1;
 
-        var boardDef = Math.ceil(COLS / 2) + "~" + description + "~" + JSON.stringify(thermos) + "~" + lines.join(";").replace(/@/g, ".");
+        let ringRadiusList = [];
+        for (var i = 0; i < hexTypes.length; i++) {
+            ringRadiusList[i] = hexTypes[i].radius || 0;
+        };
+        var boardDef = Math.ceil(COLS / 2) + "~" + description + "~" + JSON.stringify(ringRadiusList) + "~" + lines.join(";").replace(/@/g, ".");
         return boardDef;
 
         //$("#txtBoardDefinition").val(boardDef);
@@ -569,12 +459,10 @@ $(document).ready(function () {
         }
 
         if (eventType == "move") {
-            if (currentTool == "Pencil") {
-                var prevHexCoords = getMouseHexCoords(prevMouseX, prevMouseY);
-                var hexCoords = getMouseHexCoords(mouseX, mouseY);
-                if (prevHexCoords[0] != hexCoords[0] || prevHexCoords[1] != hexCoords[1]) {
-                    usePencil(mouseX, mouseY, e.shiftKey, e.ctrlKey);
-                }
+            var prevHexCoords = getMouseHexCoords(prevMouseX, prevMouseY);
+            var hexCoords = getMouseHexCoords(mouseX, mouseY);
+            if (prevHexCoords[0] != hexCoords[0] || prevHexCoords[1] != hexCoords[1]) {
+                usePencil(mouseX, mouseY, e.shiftKey, e.ctrlKey);
             }
             if (showingMouseOver) {
                 showingMouseOver = false;
@@ -604,83 +492,10 @@ $(document).ready(function () {
             if (!handled) {
                 //check board
                 isMouseDown = true;
-                if (currentTool == "Thermo") {
-                    var hexCoords = getMouseHexCoords(mouseX, mouseY);
-                    if (inBoard(hexCoords[0], hexCoords[1])) {
-                        let cell = getBoardCell(hexCoords);
-                        if (cell) {
-                            registerBoardChange();
-                            //check if this is in a thermo.  if so, remove this cell and all above it.
-                            //todo: clean up thermos which are contained within other thermos, to handle case when we just trimmed off a split portion.
-                            let foundit = false;
-                            for (let tidx = thermos.length - 1; tidx >= 0; tidx--) {
-                                for (let tidx2 = 0; tidx2 < thermos[tidx].length; tidx2++) {
-                                    var thermocellcoords = thermos[tidx][tidx2]
-                                    if (thermocellcoords[0] == cell.x && thermocellcoords[1] == cell.y) {
-                                        foundit = true;
-                                        if (tidx2 == 0) {
-                                            thermos.splice(tidx, 1);
-                                        } else {
-                                            thermos[tidx].splice(tidx2, thermos[tidx].length - tidx2);
-                                        }
-                                        break;
-                                    }
-                                }
-                                if (foundit) break;
-                            }
-                            if (!foundit) {
-                                //if not, check if adjacent cells are in any thermos.  if so, add to the nearest thermo cell.
-                                let closestAdjacentThermo = null;
-                                let closestAdjacentThermoCellID = null;
-                                let closestAdjacentThermoDist = 1000000;
-                                for (let neighborcell of getAllNeighborHexCoords(hexCoords)) {
-                                    //check all thermos to see if they exist.
-                                    foundit = false;
-                                    for (let thermo of thermos) {
-                                        //for (let thermocell of thermo) {
-                                        for (let tidx = 0; tidx < thermo.length; tidx++) {
-                                            if (neighborcell[0] == thermo[tidx][0] && neighborcell[1] == thermo[tidx][1]) {
-                                                let neighborcenter = getHexCenter(neighborcell[0], neighborcell[1]);
-                                                let dist = Math.pow(mouseX - neighborcenter[0], 2) + Math.pow(mouseY - neighborcenter[1], 2);
-                                                if (dist < closestAdjacentThermoDist) {
-                                                    closestAdjacentThermo = thermo;
-                                                    closestAdjacentThermoCellID = tidx;
-                                                    closestAdjacentThermoDist = dist;
-                                                }
-                                                foundit = true;
-                                                break;
-                                            }
-                                        }
-                                        if (foundit) break;
-                                    }
-                                }
-                                if (closestAdjacentThermo) {
-                                    //put cell onto end of existing thermo.
-                                    if (closestAdjacentThermoCellID == closestAdjacentThermo.length - 1) {
-                                        closestAdjacentThermo.push([cell.x, cell.y]);
-                                    } else {
-                                        //create new thermo split from last, with this cell as last one.
-                                        let newthermo = [];
-                                        for (let tidx = 0; tidx <= closestAdjacentThermoCellID; tidx++) {
-                                            newthermo.push([closestAdjacentThermo[tidx][0], closestAdjacentThermo[tidx][1]]);
-                                        }
-                                        newthermo.push([cell.x, cell.y]);
-                                        thermos.push(newthermo);
-                                    }
-                                } else {
-                                    //start new thermo.
-                                    thermos.push([[cell.x, cell.y]]);
-                                }
-                            }
-                            drawBoard();
-                        }
-                    }
-                } else if (currentTool == "Pencil") {
-                    var boardJSON = getBoardJSON();
-                    mouseMovingColor = 0;
-                    if (usePencil(mouseX, mouseY, e.shiftKey, e.ctrlKey)) {
-                        registerBoardChange(boardJSON);
-                    }
+                var boardJSON = getBoardJSON();
+                mouseMovingColor = 0;
+                if (usePencil(mouseX, mouseY, e.shiftKey, e.ctrlKey)) {
+                    registerBoardChange(boardJSON);
                 }
             }
         } else if (eventType == "up") {
@@ -691,7 +506,7 @@ $(document).ready(function () {
         }
     }
     function getBoardJSON() {
-        return JSON.stringify({ "desc": description, "board": board, "thermos": thermos });
+        return JSON.stringify({ "desc": description, "board": board });
     }
     function registerBoardChange(boardJSON) {
         undoboards.push(boardJSON || getBoardJSON());
@@ -730,7 +545,6 @@ $(document).ready(function () {
         board = b.board;
         description = b.desc;
         $("#hTitle").text(description);
-        thermos = b.thermos;
         resetBoardDisplay();
     }
 
@@ -1335,7 +1149,6 @@ $(document).ready(function () {
     var boardDisplay;
     var undoboards;//used for undo
     var redoboards;//used for redo
-    var thermos = [];
     var solveMode = true;
 
     function toggleSolveMode() {
@@ -1403,37 +1216,37 @@ $(document).ready(function () {
         }, {
             name: hexTypeNames.Red,
             color: "crimson",
-            symbol: "",//"➕",
+            symbol: "A",//"➕",
             radius: 0,
         }, {
             name: hexTypeNames.Orange,
             color: "orange",
-            symbol: "",//"➕",
+            symbol: "B",//"➕",
             radius: 0,
         }, {
             name: hexTypeNames.Yellow,
             color: "gold",
-            symbol: "",//"☇",
+            symbol: "C",//"☇",
             radius: 0,
         }, {
             name: hexTypeNames.Green,
             color: "lawngreen",
-            symbol: "",//"☆",
+            symbol: "D",//"☆",
             radius: 0,
         }, {
             name: hexTypeNames.DarkGreen,
             color: "Green",
-            symbol: "",//"★",
+            symbol: "E",//"★",
             radius: 0,
         }, {
             name: hexTypeNames.Blue,
             color: "dodgerblue",
-            symbol: "",//"⛨",
+            symbol: "F",//"⛨",
             radius: 0,
         }, {
             name: hexTypeNames.Purple,
             color: "Purple",
-            symbol: "",//"★",
+            symbol: "G",//"★",
             radius: 0,
         },
         {
@@ -2478,7 +2291,6 @@ $(document).ready(function () {
             " ");
     })();
 
-    var currentTool = "Pencil";
     var currentHexType = -1;
     var tools = [];
     var mouseOverTexts = [];
@@ -2547,20 +2359,7 @@ $(document).ready(function () {
             draw: "//",
         });
 
-        //tools.push({
-        //    name: "Thermo",
-        //    color: "lightgray",
-        //    click: function () {
-        //        currentTool = this.name;
-        //        drawBoard();
-        //    },
-        //    draw: function () {
-        //        if (currentTool == this.name) {
-        //            drawToolShadow(this);
-        //        }
-        //        drawString("T", this.x + 4.5, this.y + 3.5, "black");
-        //    }
-        //});
+
 
         //tools.push({
         //    name: "Flip Horizontally (Ctrl+click for Vertically).  This will reset the Undo/Redo.",
@@ -2651,9 +2450,6 @@ $(document).ready(function () {
                         shortcutKey: hexTypes[i].shortcutKey,//"key_" + hexTypes[i].name,
                         click: function () {
                             currentHexType = this.hexType;
-                            if (currentTool == "Thermo") {
-                                currentTool = "Pencil";
-                            }
                             drawBoard();
                         },
                         draw: function () {
@@ -2703,64 +2499,16 @@ $(document).ready(function () {
                 draw: "⌬",
             });
 
-
-            //tools.push({
-            //    name: "Pencil/Fill",
-            //    color: "lightgray",
-            //    click: function () {
-            //        if (currentTool == "Pencil") {
-            //            currentTool = "Fill";
-            //        } else {
-            //            currentTool = "Pencil";
-            //        }
-            //        drawBoard();
-            //    },
-            //    symbol: "⚫",
-            //    draw: function () {
-            //        if (currentTool == "Fill") {
-            //            var offsets = [[1, 3], [4, -1], [9, 1], [9, 5], [7, 7], [3, 7], [5, 3]];
-            //            drawToolShadow(this);
-            //            for (var i = 0; i < offsets.length; i++) {
-            //                drawString("⚫", this.x + .5 + offsets[i][0], this.y + .5 + offsets[i][1], "black");
-            //            }
-            //        } else if (currentTool == "Pencil") {
-            //            drawToolShadow(this);
-            //            drawString(this.symbol, this.x + this.width / 2 - 2.5, this.y + 3.5, "black");
-            //        } else {
-            //            drawString(this.symbol, this.x + this.width / 2 - 2.5, this.y + 3.5, "gray");
-            //        }
-            //    }
-            //});
-            //tools.push({
-            //    name: "Fill",
-            //    color: "lightgray",
-            //    click: function () {
-            //        currentTool = this.name;
-            //        drawBoard();
-            //    },
-            //    draw: function () {
-            //        if (currentTool == this.name) {
-            //            drawToolShadow(this);
-            //        }
-            //        var offsets = [[1, 3], [4, -1], [9, 1], [9, 5], [7, 7], [3, 7], [5, 3]];
-            //        for (var i = 0; i < offsets.length; i++) {
-            //            drawString("⚫", this.x + .5 + offsets[i][0], this.y + .5 + offsets[i][1], "black");
-            //        }
-            //    }
-            //});
             tools.push({
-                name: ["Find a solution for shaded cells","(Ctrl+click to check all possible solutions)"],
+                name: ["Find a solution for shaded cells", "(Ctrl+click to check all possible solutions)"],
                 color: "lightgray",
-                //shortcutKey: "w",
                 click: function (ctrlKey, shiftKey) {
                     //populate all possibilities on the grid as display data.
-
-                    //if (event.key == 'w') shiftKey = true;
 
                     registerBoardChange();
                     console.time("prep");
 
-                    var starCount = 1;//prompt("# of stars per line/region");
+                    var starCount = 1;
                     if (starCount == "") return;
                     starCount = Number(starCount);
                     while (!Number.isInteger(starCount)) {
@@ -3143,16 +2891,16 @@ $(document).ready(function () {
         //create gradient for first tool, the solving tool.
         if (!solveMode) {
 
-        var solvingGradient = ctx.createLinearGradient(solvingTool.x,
-            solvingTool.y,
-            solvingTool.x + solvingTool.width,
-            solvingTool.y + solvingTool.height);
+            var solvingGradient = ctx.createLinearGradient(solvingTool.x,
+                solvingTool.y,
+                solvingTool.x + solvingTool.width,
+                solvingTool.y + solvingTool.height);
 
-        solvingGradient.addColorStop(.3, "#DEB887");
-        solvingGradient.addColorStop(0.35, "#8b4513");
-        solvingGradient.addColorStop(0.65, "#8b4513");
-        solvingGradient.addColorStop(.7, "#FFFFFF");
-        solvingTool.color = solvingGradient;
+            solvingGradient.addColorStop(.3, "#DEB887");
+            solvingGradient.addColorStop(0.35, "#8b4513");
+            solvingGradient.addColorStop(0.65, "#8b4513");
+            solvingGradient.addColorStop(.7, "#FFFFFF");
+            solvingTool.color = solvingGradient;
         }
 
         //var descriptionTool = {
