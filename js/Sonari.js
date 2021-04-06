@@ -238,7 +238,7 @@ $(document).ready(function () {
                     displayValue = boardDisplay[x][y];
                 }
 
-                drawStrings.push([displayValue.substr(0, 3), Math.round(coords[0] + HEX_W / 2 - 3), Math.round(coords[1] + HEX_H / 2 - 10), "black"]);
+                drawStrings.push([displayValue.substr(0, 3), Math.round(coords[0] + HEX_W / 2 - linelen/3), Math.round(coords[1] + HEX_H / 2 - 12 + linelen/8 ), "black"]);
 
                 //addMouseOverText(hexType.name + " (" + x + "," + y + "): " + boardDisplay[x][y], "board", coords[0] + 6, coords[1] + 3, coords[0] + 5 + 16, coords[1] + 3 + 16);
                 //draw bounding box:
@@ -424,9 +424,11 @@ $(document).ready(function () {
 
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'black';
+        ctx.font = linelen+'px sans-serif';
         for (let [s, x, y, c] of drawStrings) {
             drawString(s, x, y, c);
         }
+        ctx.font = '20px sans-serif';
 
         drawToolbox();
 
