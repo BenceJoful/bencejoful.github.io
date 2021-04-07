@@ -5,6 +5,7 @@
  * 
  * Mobile friendly - bigger controls
  * Help section with rules and interface guide.
+ * Warn when multiple rings have same radius?
 */
 
 'use strict';
@@ -1253,9 +1254,13 @@ $(document).ready(function () {
         }
     };
 
-    var canvas = document.getElementById('canvas');
-    var canvasW = canvas.width;
-    var canvasH = canvas.height;
+    var $canvas = $("canvas");// = document.getElementById('canvas');
+    var canvasW = Math.min($canvas.width(), $canvas.height());
+    var canvasH = canvasW;
+    canvas.width = canvasW;
+    canvas.height = canvasH;
+    $canvas.width(canvasW);
+    $canvas.height(canvasH);
     var linelen = 20;//6;//20;//
     var HEX_W;
     var HEX_H;
