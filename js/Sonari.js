@@ -640,27 +640,27 @@ $(document).ready(function () {
                         if (mouseMovingColor == 0) {
                             if (targetHexTypeID == 1) {
                                 if (event.buttons == 2) {
-                                    //None, set to Shaded
-                                    hexTypeID = 3;
-                                } else {
                                     //None, set to Unshaded
                                     hexTypeID = 2;
+                                } else {
+                                    //None, set to Shaded
+                                    hexTypeID = 3;
                                 }
                             } else if (targetHexTypeID == 2) {
                                 if (event.buttons == 2) {
-                                    //Unshaded, set to None
-                                    hexTypeID = 1;
-                                } else {
                                     //Unshaded, set to Shaded
                                     hexTypeID = 3;
+                                } else {
+                                    //Unshaded, set to None
+                                    hexTypeID = 1;
                                 }
                             } else if (targetHexTypeID == 3) {
                                 if (event.buttons == 2) {
-                                    //Shaded, set to Unshaded
-                                    hexTypeID = 2;
-                                } else {
                                     //Shaded, set to None
                                     hexTypeID = 1;
+                                } else {
+                                    //Shaded, set to Unshaded
+                                    hexTypeID = 2;
                                 }
                             }
                         } else {
