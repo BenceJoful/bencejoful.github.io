@@ -752,16 +752,24 @@ $(document).ready(function () {
                         let hexType = hexTypes[cell.hexTypeID];
                         if (hexType.radius) {
                             let clueShadedCellCnt = 0;
+                            let allCellsShaded = true;
                             for (var cellCoords of getCellRingCoords(cell, hexType.radius)) {
                                 let ringCell = getBoardCell(cellCoords);
-                                if (ringCell && ringCell.hexTypeID == 3) {
-                                    clueShadedCellCnt++;
+                                if (ringCell) {
+
+                                    if (ringCell.hexTypeID == 3) {
+                                        clueShadedCellCnt++;
+                                    }                                    else if (ringCell.hexTypeID == 1) {
+                                        allCellsShaded = false;
+                                    }
                                 }
+
+
                             }
-                            if (cell.number != clueShadedCellCnt) {
+                            if (cell.number % 7 != clueShadedCellCnt) {
                                 answerValid = false;
                                 cell.showRing = true;
-                            } else {
+                            } else if (allCellsShaded)  {
                                 //hide this ring.
                                 cell.showRing = false;
                             }
