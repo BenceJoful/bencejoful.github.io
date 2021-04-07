@@ -1,13 +1,8 @@
 ﻿/*todo: 
  *      hover over cells to highlight that cell's ring.  
  *      click on colors to toggle those rings on/off.  
- *      hide ring when it fulfills the clue: either correct number of shaded cells or (for 0 clues) all cells marked unshaded.
- *          workaround, simply shade over that clue.
- * Answer check
- * colorblind mode: small leters nestled into the crook of the 
- * Mobile friendly - better aspect ratio, more responsive controls, no zooming in.
+ * Mobile friendly - bigger controls
  * Help section with rules and interface guide.
- * Clues on intersections
 */
 
 'use strict';
@@ -19,16 +14,18 @@ $(document).ready(function () {
         sudokuCellGroups = [];
         x = 0;
         y = 0;
-        constructor(x, y, hexTypeID, number, sudokuCellGroups) {
+        showRing = true;
+        constructor(x, y, hexTypeID, number, sudokuCellGroups, showRing) {
             this.x = x;
             this.y = y;
             this.hexTypeID = hexTypeID;
             this.number = number;
             this.sudokuCellGroups = sudokuCellGroups;
+            this.showRing = showRing;
         }
     }
     function getCellClone(cell) {
-        return new Cell(cell.x, cell.y, cell.hexTypeID, cell.number, cell.sudokuCellGroups);
+        return new Cell(cell.x, cell.y, cell.hexTypeID, cell.number, cell.sudokuCellGroups, cell.showRing);
     }
 
     function getDrawCoords(x, y, overX) {
@@ -227,21 +224,16 @@ $(document).ready(function () {
         for (let x = 0; x < COLS; ++x) {
             for (let y = 0; y < ROWS; ++y) {
                 let cell = getBoardCell([x, y]);
-                if (cell) {
+                if (cell && cell.showRing) {
                     let hexType = hexTypes[cell.hexTypeID];
                     if (hexType.radius) {
-                        //let [centerX, centerY] = getHexCenter(cell.x, cell.y);
-
-                        //start at southwest corner.
-                        let ringCoords = [cell.x, cell.y];
-                        for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
-                            ringCoords = getNeighborHexCoords(ringCoords, 4);
-                        }
-                        //travel around the ring radius steps in each direction.
-                        for (let dir = 0; dir < 6; dir++) {
-                            for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
-                                let ringLine = { x1: ringCoords[0], y1: ringCoords[1] };
-                                ringCoords = getNeighborHexCoords(ringCoords, dir);
+                        let ringCoordsList = getCellRingCoords(cell, hexType.radius);
+                        if (ringCoordsList) {
+                            let ringLine = {
+                                x1: ringCoordsList[ringCoordsList.length - 1][0],
+                                y1: ringCoordsList[ringCoordsList.length - 1][1],
+                            };
+                            for (var ringCoords of ringCoordsList) {
                                 if (ringLine.x1 < ringCoords[0] || (ringLine.x1 == ringCoords[0] && ringLine.y1 < ringCoords[1])) {
                                     ringLine.x2 = ringCoords[0];
                                     ringLine.y2 = ringCoords[1];
@@ -257,9 +249,41 @@ $(document).ready(function () {
                                 } else {
                                     ringLines[ringLine] = [hexType.color];
                                 }
+                                ringLine = {
+                                    x1: ringCoords[0],
+                                    y1: ringCoords[1],
+                                };
                             }
-                            //ctx.lineTo(centerX * .05 + drawX * .95, centerY * .05 + drawY * .95);
                         }
+
+                        ////start at southwest corner.
+                        //let ringCoords = [cell.x, cell.y];
+                        //for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
+                        //    ringCoords = getNeighborHexCoords(ringCoords, 4);
+                        //}
+                        ////travel around the ring radius steps in each direction.
+                        //for (let dir = 0; dir < 6; dir++) {
+                        //    for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
+                        //        let ringLine = { x1: ringCoords[0], y1: ringCoords[1] };
+                        //        ringCoords = getNeighborHexCoords(ringCoords, dir);
+                        //        if (ringLine.x1 < ringCoords[0] || (ringLine.x1 == ringCoords[0] && ringLine.y1 < ringCoords[1])) {
+                        //            ringLine.x2 = ringCoords[0];
+                        //            ringLine.y2 = ringCoords[1];
+                        //        } else {
+                        //            ringLine.x2 = ringLine.x1;
+                        //            ringLine.y2 = ringLine.y1;
+                        //            ringLine.x1 = ringCoords[0];
+                        //            ringLine.y1 = ringCoords[1];
+                        //        }
+                        //        ringLine = JSON.stringify(ringLine);
+                        //        if (ringLines[ringLine]) {
+                        //            ringLines[ringLine].push(hexType.color);
+                        //        } else {
+                        //            ringLines[ringLine] = [hexType.color];
+                        //        }
+                        //    }
+                        //    //ctx.lineTo(centerX * .05 + drawX * .95, centerY * .05 + drawY * .95);
+                        //}
                     }
                 }
             }
@@ -506,7 +530,7 @@ $(document).ready(function () {
         }
     }
     function getBoardJSON() {
-        return JSON.stringify({ "desc": description, "board": board });
+        return JSON.stringify({ "desc": description, "board": board , "hexTypes": hexTypes});
     }
     function registerBoardChange(boardJSON) {
         undoboards.push(boardJSON || getBoardJSON());
@@ -545,6 +569,7 @@ $(document).ready(function () {
         board = b.board;
         description = b.desc;
         $("#hTitle").text(description);
+        hexTypes = b.hexTypes;
     }
 
     let lastRadiusChangedTime = 0;
@@ -592,6 +617,8 @@ $(document).ready(function () {
                                     }
                                 }
                             }
+                            registerBoardChange();
+                            changed = true;
                             if (event.buttons == 2) {
                                 if (hexTypes[targetHexTypeID].radius > 0) {
                                     hexTypes[targetHexTypeID].radius--;
@@ -605,7 +632,6 @@ $(document).ready(function () {
                                     hexTypes[targetHexTypeID].radius = 0;
                                 }
                             }
-                            drawBoard();
                         }
                         hexTypeID = 0;
                     } else {
@@ -681,13 +707,110 @@ $(document).ready(function () {
                         }
                     }
                 }
-                drawBoard();
 
                 prevMouseX = mouseX;
                 prevMouseY = mouseY;
             }
         }
+        if (changed) {
+            checkAnswer();
+            drawBoard();
+        }
         return changed;
+    }
+    function checkAnswer() {
+        //check shaded cells, ensure there are correct number and they don't see each other
+
+        let answerValid = true;
+        let shadedCellCount = 0;
+        //check clues, ensure there are correct number of shaded cells on ring.
+        //todo:hide ring on clues that are fulfilled.
+        for (let y = 0; y < ROWS; ++y) {
+            for (let x = 0; x < COLS; ++x) {
+                let cell = getBoardCell([x, y]);
+                if (cell) {
+                    if (answerValid && cell.hexTypeID == 3) {
+                        //found a shaded cell: increment count and check that it sees no other shaded cells
+                        shadedCellCount++;
+                        if (!cell.sudokuCellGroups) (setSudokuCellGroups());
+
+                        for (let group of cell.sudokuCellGroups) {
+                            for (let coords of group.cellCoords) {
+                                if (board[coords[0]][coords[1]].hexTypeID == 3) {
+                                    answerValid = false;
+                                    break;
+                                }
+                            }
+                            if (!answerValid) {
+                                break;
+                            }
+                        }
+                    }
+                    if (cell.hexTypeID > 3) {
+                        //found a clue.  Determine whether it has exactly cell.number shaded cells on perimeter.
+
+                        let hexType = hexTypes[cell.hexTypeID];
+                        if (hexType.radius) {
+                            let clueShadedCellCnt = 0;
+                            for (var cellCoords of getCellRingCoords(cell, hexType.radius)) {
+                                let ringCell = getBoardCell(cellCoords);
+                                if (ringCell && ringCell.hexTypeID == 3) {
+                                    clueShadedCellCnt++;
+                                }
+                            }
+                            if (cell.number != clueShadedCellCnt) {
+                                answerValid = false;
+                                cell.showRing = true;
+                            } else {
+                                //hide this ring.
+                                cell.showRing = false;
+                            }
+                        } else {
+                            answerValid = false;
+                        }
+
+                    }
+                    ////travel in all directions until finding a space without a cell.
+                    //for (let dir = 0; dir < 6; dir++) {
+                    //    let neighborCoords = [x, y];
+                    //    for (let radius = 1; radius <= maxRadius; radius++) {
+                    //        neighborCoords = getNeighborHexCoords(neighborCoords, dir);
+                    //        let neighborcell = getBoardCell(neighborCoords);
+                    //        if (!neighborcell || neighborcell.hexTypeID == 0) {
+                    //            maxRadius = radius - 1;
+                    //            break;
+                    //        }
+                    //    }
+                    //    if (maxRadius == 1) {
+                    //        break;
+                    //    }
+                    //}
+                }
+            }
+        }
+        if (answerValid && shadedCellCount == COLS) {
+            setTimeout(function () { alert("Congratulations, you solved the puzzle!") }, 1);
+            isMouseDown = false;
+        }
+
+    }
+    function getCellRingCoords(cell, radius) {
+        let coordsList = [];
+
+        //start at southwest corner.
+        let ringCoords = [cell.x, cell.y];
+        for (let radiusI = 0; radiusI < radius; radiusI++) {
+            ringCoords = getNeighborHexCoords(ringCoords, 4);
+        }
+
+        //travel around the ring radius steps in each direction.
+        for (let dir = 0; dir < 6; dir++) {
+            for (let radiusI = 0; radiusI < radius; radiusI++) {
+                ringCoords = getNeighborHexCoords(ringCoords, dir);
+                coordsList.push(ringCoords);
+            }
+        }
+        return coordsList;
     }
 
     var HexDirections = [
@@ -777,7 +900,7 @@ $(document).ready(function () {
     //    return log;
     //}
     function setStarBattleCellGroups(starCount) {
-        setSudokuCellGroups(true);
+        setSudokuCellGroups();
         for (var x = 0; x < COLS; ++x) {
             for (var y = 0; y < ROWS; ++y) {
                 var cell = getBoardCell([x, y]);
@@ -785,8 +908,6 @@ $(document).ready(function () {
                     for (let group of cell.sudokuCellGroups) {
                         group.totalValue = starCount;
                     }
-                    //except just 1 for the adjacent cells.
-                    cell.sudokuCellGroups[0].totalValue = 1;
                 }
             }
         }
@@ -817,9 +938,6 @@ $(document).ready(function () {
                                 }
                                 if (getBoardCell([x2, y2])) {
                                     axisCoords.push([x2, y2]);
-                                } else {
-                                    //stop looking when passing empty cells.  Remove this to allow gaps within a line while retaining the set.
-                                    break;
                                 }
                             }
                         }
@@ -862,8 +980,9 @@ $(document).ready(function () {
         var cell = board[hexCoords[0]][hexCoords[1]];
         if (typeof cell != 'undefined') {
             cell.hexTypeID = hexTypeID;
+            cell.showRing = true;
         } else {
-            board[hexCoords[0]][hexCoords[1]] = new Cell(hexCoords[0], hexCoords[1], hexTypeID, 0);
+            board[hexCoords[0]][hexCoords[1]] = new Cell(hexCoords[0], hexCoords[1], hexTypeID, 0, null, true);
         }
     };
     function setBoardNumber(hexCoords, number) {
@@ -2412,6 +2531,7 @@ $(document).ready(function () {
                         }
                     }
                 }
+                checkAnswer();
                 drawBoard();
             },
             draw: "X",
@@ -2514,8 +2634,6 @@ $(document).ready(function () {
                         if (starCount == "") return;
                         starCount = Number(starCount);
                     }
-
-                    //let starCount = 2;
 
                     let verifyCount = 0;
                     let setCount = 0;
@@ -2807,6 +2925,7 @@ $(document).ready(function () {
                             alert("This shaded cell layout has 0 solutions");
                         }
                     }
+
 
                     drawBoard();
                 },
