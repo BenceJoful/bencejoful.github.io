@@ -1,6 +1,8 @@
 ﻿/*todo: 
- *      hover over cells to highlight that cell's ring.  
- *      click on colors to toggle those rings on/off.  
+ * hover over clue to highlight that clue's ring, and non-shaded cells on the ring.  
+ * click on colors to toggle those rings on/off?
+ * pencil marks?  Long-press or ctrl click.
+ * 
  * Mobile friendly - bigger controls
  * Help section with rules and interface guide.
 */
@@ -530,7 +532,7 @@ $(document).ready(function () {
         }
     }
     function getBoardJSON() {
-        return JSON.stringify({ "desc": description, "board": board , "hexTypes": hexTypes});
+        return JSON.stringify({ "desc": description, "board": board, "hexTypes": hexTypes });
     }
     function registerBoardChange(boardJSON) {
         undoboards.push(boardJSON || getBoardJSON());
@@ -697,11 +699,19 @@ $(document).ready(function () {
                                 setBoardNumber([x, y], (hexType.symbol == "0" ? 7 : Number(hexType.symbol)))
                             }
                             else {
-                                //toggle colors on/off if it's the same clue color.
-                                if (cell.hexTypeID == hexTypeID && hexTypeID > 3) {
-                                    hexTypeID = 1;
+                                //for clues
+                                if (cell.hexTypeID > 3) {
+                                    //toggle colors on/off if it's the same clue color.
+                                    if (cell.hexTypeID == hexTypeID) {
+                                        hexTypeID = 1;
+                                    }
+                                    //double-check its not the solve tool.  Workaround for issue I should debug.
+                                    if (currentHexType != -1) {
+                                        setBoardHexType([x, y], hexTypeID);
+                                    }
+                                } else {
+                                    setBoardHexType([x, y], hexTypeID);
                                 }
-                                setBoardHexType([x, y], hexTypeID);
                             }
                             changed = true;
                         }
@@ -759,7 +769,7 @@ $(document).ready(function () {
 
                                     if (ringCell.hexTypeID == 3) {
                                         clueShadedCellCnt++;
-                                    }                                    else if (ringCell.hexTypeID == 1) {
+                                    } else if (ringCell.hexTypeID == 1) {
                                         allCellsShaded = false;
                                     }
                                 }
@@ -769,7 +779,7 @@ $(document).ready(function () {
                             if (cell.number % 7 != clueShadedCellCnt) {
                                 answerValid = false;
                                 cell.showRing = true;
-                            } else if (allCellsShaded)  {
+                            } else if (allCellsShaded) {
                                 //hide this ring.
                                 cell.showRing = false;
                             }
@@ -797,8 +807,8 @@ $(document).ready(function () {
             }
         }
         if (answerValid && shadedCellCount == COLS) {
-            setTimeout(function () { alert("Congratulations, you solved the puzzle!") }, 1);
             isMouseDown = false;
+            setTimeout(function () { alert("Congratulations, you solved the puzzle!") }, 1);
         }
 
     }
