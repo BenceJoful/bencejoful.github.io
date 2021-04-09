@@ -163,7 +163,7 @@ $(document).ready(function () {
                 ctx.moveTo(border[0], border[1]);
                 ctx.lineTo(border[2], border[3]);
             }
-            ctx.lineWidth = 5;
+            ctx.lineWidth = BORDER_WIDTH;
             ctx.strokeStyle = 'black';
             ctx.stroke();
 
@@ -1128,6 +1128,7 @@ $(document).ready(function () {
     var solveMode = true;
     var SOLVING_SHADED = "ForestGreen";
     var SOLVING_UNSHADED = "PaleGreen";
+    var BORDER_WIDTH = 5;
 
     function toggleSolveMode() {
         solveMode = !solveMode;
@@ -1155,7 +1156,7 @@ $(document).ready(function () {
     $canvas.mouseup(handleMouse);
     var lastTouchStart;
     var lastTouchScrollTop;
-    $canvas[0].ontouchstart = function (e) { lastTouchStart = e; lastTouchScrollTop = $("body").scrollTop();};
+    $canvas[0].ontouchstart = function (e) { lastTouchStart = e; lastTouchScrollTop = $("body").scrollTop(); };
     //$canvas[0].ontouchmove = handleMouse;
     $canvas[0].ontouchend = function (e) {
         //if we didn't scroll (significantly?), trigger a touch.
@@ -2459,7 +2460,6 @@ $(document).ready(function () {
         //    draw: "?",
         //});
 
-
         tools.push({
             name: "Save changes to new tab/URL",
             color: "lightgray",
@@ -2478,8 +2478,6 @@ $(document).ready(function () {
             },
             draw: "✎",
         });
-
-
 
         //tools.push({
         //    name: "About",
@@ -2513,7 +2511,7 @@ $(document).ready(function () {
         }
         if (solveMode) {
             solvingTool = {
-                name: "Choose Solving Colors",
+                name: "Choose solving colors and border width",
                 color: solvingGradient,
                 //shortcutKey: "^up",
                 click: function () {
@@ -2521,14 +2519,18 @@ $(document).ready(function () {
                     if (shaded) {
                         let unshaded = prompt("Unshaded Color (#XXXXXX or CSS color): ", SOLVING_UNSHADED);
                         if (unshaded) {
-                            SOLVING_SHADED = shaded;
-                            SOLVING_UNSHADED = unshaded;
+                            let borderWidth = prompt("Border width (numeric): ", BORDER_WIDTH);
+                            if (borderWidth) {
+                                SOLVING_SHADED = shaded;
+                                SOLVING_UNSHADED = unshaded;
+                                BORDER_WIDTH = borderWidth;
+                            }
                         }
                     }
                     createTools();
                     drawBoard();
                 },
-                draw: "C",
+                draw: "",
             }
             tools.push(solvingTool);
         }
@@ -2595,10 +2597,25 @@ $(document).ready(function () {
             solvingTool.x + solvingTool.width,
             solvingTool.y + solvingTool.height);
 
-        solvingGradient.addColorStop(.3, "#FFFFFF");
-        solvingGradient.addColorStop(0.35, SOLVING_SHADED);
-        solvingGradient.addColorStop(0.65, SOLVING_SHADED);
-        solvingGradient.addColorStop(.7, SOLVING_UNSHADED);
+        let gradientlength = Math.sqrt(solvingTool.width * solvingTool.width + solvingTool.height * solvingTool.height);
+        let borderOffset = BORDER_WIDTH / 2 / gradientlength;
+        let aaAmount = .015;
+
+        //get length 
+        solvingGradient.addColorStop(.3 - borderOffset - aaAmount, "#FFFFFF");
+        solvingGradient.addColorStop(.3 - borderOffset + aaAmount, "black");
+        solvingGradient.addColorStop(.3 + borderOffset - aaAmount, "black");
+        solvingGradient.addColorStop(.3 + borderOffset + aaAmount, SOLVING_SHADED);
+
+        solvingGradient.addColorStop(.7 - borderOffset - aaAmount, SOLVING_SHADED);
+        solvingGradient.addColorStop(.7 - borderOffset + aaAmount, "black");
+        solvingGradient.addColorStop(.7 + borderOffset - aaAmount, "black");
+        solvingGradient.addColorStop(.7 + borderOffset + aaAmount, SOLVING_UNSHADED);
+
+        //        solvingGradient.addColorStop(.3, "#FFFFFF");
+        //        solvingGradient.addColorStop(0.35, SOLVING_SHADED);
+        //        solvingGradient.addColorStop(0.65, SOLVING_SHADED);
+        //        solvingGradient.addColorStop(.7, SOLVING_UNSHADED);
         solvingTool.color = solvingGradient;
 
         //var descriptionTool = {
