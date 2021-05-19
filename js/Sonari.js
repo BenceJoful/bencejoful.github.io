@@ -2762,8 +2762,8 @@ $(document).ready(function () {
                 color: "lightgray",
                 shortcutKey: "delete",
                 click: function () {
-                    let sidelen = prompt("(Warning: this will delete everything off the board)\nNew board side length (3-32):", Math.ceil(COLS / 2));
-                    if (sidelen && Number.isInteger(Number(sidelen)) && Number(sidelen) >= 3 && Number(sidelen) <= 33) {
+                    let sidelen = prompt("(Warning: this will delete everything off the board)\nNew board side length (3-11):", Math.ceil(COLS / 2));
+                    if (sidelen && Number.isInteger(Number(sidelen)) && Number(sidelen) >= 3 && Number(sidelen) <= 32) {
                         COLS = Number(sidelen) * 2 - 1;
                         ROWS = COLS;
                         resetBoard();
