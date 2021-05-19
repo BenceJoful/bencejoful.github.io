@@ -1,14 +1,11 @@
 ﻿/*todo: 
- * solve tool: change to solve mode?
- *      hover over cells to highlight that cell's ring.  
- *      click on colors to toggle those rings on/off.  
- *      hide ring when it fulfills the clue: either correct number of shaded cells or (for 0 clues) all cells marked unshaded.
- *          workaround, simply shade over that clue.
- * Answer check
- * Mobile friendly - better aspect ratio, more responsive controls, no zooming in.
- * button(?) to unlock setting mode.
- * save ring radius to url.
+ * hover over clue to highlight that clue's ring, and non-shaded cells on the ring.  
+ * click on colors to toggle those rings on/off?
+ * pencil marks?  Long-press or ctrl click.
+ * 
+ * Mobile friendly - bigger controls
  * Help section with rules and interface guide.
+ * Warn when multiple rings have same radius?
 */
 
 'use strict';
@@ -20,16 +17,18 @@ $(document).ready(function () {
         sudokuCellGroups = [];
         x = 0;
         y = 0;
-        constructor(x, y, hexTypeID, number, sudokuCellGroups) {
+        showRing = true;
+        constructor(x, y, hexTypeID, number, sudokuCellGroups, showRing) {
             this.x = x;
             this.y = y;
             this.hexTypeID = hexTypeID;
             this.number = number;
             this.sudokuCellGroups = sudokuCellGroups;
+            this.showRing = showRing;
         }
     }
     function getCellClone(cell) {
-        return new Cell(cell.x, cell.y, cell.hexTypeID, cell.number, cell.sudokuCellGroups);
+        return new Cell(cell.x, cell.y, cell.hexTypeID, cell.number, cell.sudokuCellGroups, cell.showRing);
     }
 
     function getDrawCoords(x, y, overX) {
@@ -89,7 +88,6 @@ $(document).ready(function () {
                 setBoardHexType([x, y], 0);
             }
         }
-        //todo: draw a starting hex, centered on ROWS/2,COLS/2.
         var centerColX = Math.floor(COLS / 2);
 
         let coordsWest = [centerColX, 0];
@@ -114,17 +112,7 @@ $(document).ready(function () {
         $("#hTitle").text(description);
         undoboards = [];
         redoboards = [];
-        resetBoardDisplay();
 
-    }
-    function resetBoardDisplay() {
-        boardDisplay = [];
-        for (var x = 0; x < COLS; ++x) {
-            boardDisplay[x] = [];
-            for (var y = 0; y < ROWS; ++y) {
-                boardDisplay[x][y] = "";
-            }
-        }
     }
 
     function importBoard() {
@@ -136,7 +124,10 @@ $(document).ready(function () {
         resetBoard();
         description = boardDef.shift();
         $("#hTitle").text(description);
-        thermos = JSON.parse(boardDef.shift());
+        let ringRadiusList = JSON.parse(boardDef.shift());
+        for (var i = 0; i < ringRadiusList.length; i++) {
+            hexTypes[i].radius = ringRadiusList[i];
+        }
         var lines = boardDef[0].replace(/\./g, "@").split(";");
         //for each line, get the first 4 characters, convert to integer, put it in board.
         for (var i = 0; i < lines.length; i++) {
@@ -172,7 +163,6 @@ $(document).ready(function () {
             }
         }
 
-        let drawStrings = [];
         var filledBlocks = [];
         var minX = COLS;
         var minY = ROWS;
@@ -213,66 +203,22 @@ $(document).ready(function () {
             drawBlock(x, y, null, null, null, true);
         }
         ctx.shadowBlur = 0;
+        let clueCells = [];
+        for (var i = 0; i < filledBlocks.length; i++) {
+            var x = filledBlocks[i][0];
+            var y = filledBlocks[i][1];
+            var cell = board[x][y];
 
-        if (filledBlocks.length > 0) {
-
-            for (var i = 0; i < filledBlocks.length; i++) {
-                var x = filledBlocks[i][0];
-                var y = filledBlocks[i][1];
-                var cell = board[x][y];
-                var hexTypeID = cell.hexTypeID;
-                var hexType = hexTypes[hexTypeID];
-
-                var coords = drawBlock(x, y, hexType.color);
-                var displayValue = "";
-                if (cell.number) {
-                    if (cell.number == 7) {
-                        displayValue = " 0";
-                    } else {
-                        displayValue = " " + cell.number.toString();
-                    }
-                    if (boardDisplay[x][y]) {
-                        displayValue += ": " + boardDisplay[x][y];
-                    }
-                } else {
-                    displayValue = boardDisplay[x][y];
-                }
-
-                drawStrings.push([displayValue.substr(0, 3), Math.round(coords[0] + HEX_W / 2 - 3), Math.round(coords[1] + HEX_H / 2 - 10), "black"]);
-
-                //addMouseOverText(hexType.name + " (" + x + "," + y + "): " + boardDisplay[x][y], "board", coords[0] + 6, coords[1] + 3, coords[0] + 5 + 16, coords[1] + 3 + 16);
-                //draw bounding box:
-                //ctx.shadowBlur = 0; ctx.lineWidth = 1; ctx.strokeRect(coords[0] + 5, coords[1] + 3, 16, 16);
-
+            if (cell.hexTypeID > 3) {
+                //draw these later so they aren't obscured by rings
+                clueCells.push(cell);
+            } else {
+                drawBlock(x, y, hexTypes[cell.hexTypeID].color);
             }
         }
         //reset drawing context
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'black';
-
-        for (var thermo of thermos) {
-            //draw bulb
-            var thermocoords = thermo[0];
-            var [drawX, drawY] = getHexCenter(thermocoords[0], thermocoords[1]);
-            ctx.fillStyle = "rgba(150,150,150,100)";
-            ctx.beginPath();
-            ctx.arc(drawX, drawY, HEX_H / 3, 0, 2 * Math.PI);
-            ctx.fill();
-
-            ctx.strokeStyle = "rgba(150,150,150,100)";
-            ctx.lineWidth = 8;
-            ctx.beginPath();
-            ctx.moveTo(drawX, drawY);
-            for (let tidx = 1; tidx < thermo.length; tidx++) {
-                let nextthermocoords = thermo[tidx];
-                //draw a line from prev to next.
-                [drawX, drawY] = getHexCenter(nextthermocoords[0], nextthermocoords[1]);
-                ctx.lineTo(drawX, drawY);
-                thermocoords = nextthermocoords;
-
-            }
-            ctx.stroke();
-        }
 
         //draw rings
         //get all cells of that radius and draw rings around them.
@@ -284,18 +230,13 @@ $(document).ready(function () {
                 if (cell) {
                     let hexType = hexTypes[cell.hexTypeID];
                     if (hexType.radius) {
-                        //let [centerX, centerY] = getHexCenter(cell.x, cell.y);
-
-                        //start at southwest corner.
-                        let ringCoords = [cell.x, cell.y];
-                        for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
-                            ringCoords = getNeighborHexCoords(ringCoords, 4);
-                        }
-                        //travel around the ring radius steps in each direction.
-                        for (let dir = 0; dir < 6; dir++) {
-                            for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
-                                let ringLine = { x1: ringCoords[0], y1: ringCoords[1] };
-                                ringCoords = getNeighborHexCoords(ringCoords, dir);
+                        let ringCoordsList = getCellRingCoords(cell, hexType.radius);
+                        if (ringCoordsList) {
+                            let ringLine = {
+                                x1: ringCoordsList[ringCoordsList.length - 1][0],
+                                y1: ringCoordsList[ringCoordsList.length - 1][1],
+                            };
+                            for (var ringCoords of ringCoordsList) {
                                 if (ringLine.x1 < ringCoords[0] || (ringLine.x1 == ringCoords[0] && ringLine.y1 < ringCoords[1])) {
                                     ringLine.x2 = ringCoords[0];
                                     ringLine.y2 = ringCoords[1];
@@ -306,18 +247,55 @@ $(document).ready(function () {
                                     ringLine.y1 = ringCoords[1];
                                 }
                                 ringLine = JSON.stringify(ringLine);
-                                if (ringLines[ringLine]) {
-                                    ringLines[ringLine].push(hexType.color);
-                                } else {
-                                    ringLines[ringLine] = [hexType.color];
+                                let ringColor = hexType.color;
+                                if (!cell.showRing) {
+                                    ringColor = "_" + ringColor;
                                 }
+                                if (ringLines[ringLine]) {
+                                    ringLines[ringLine].push(ringColor);
+                                } else {
+                                    ringLines[ringLine] = [ringColor];
+                                }
+                                ringLine = {
+                                    x1: ringCoords[0],
+                                    y1: ringCoords[1],
+                                };
                             }
-                            //ctx.lineTo(centerX * .05 + drawX * .95, centerY * .05 + drawY * .95);
                         }
+
+                        ////start at southwest corner.
+                        //let ringCoords = [cell.x, cell.y];
+                        //for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
+                        //    ringCoords = getNeighborHexCoords(ringCoords, 4);
+                        //}
+                        ////travel around the ring radius steps in each direction.
+                        //for (let dir = 0; dir < 6; dir++) {
+                        //    for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
+                        //        let ringLine = { x1: ringCoords[0], y1: ringCoords[1] };
+                        //        ringCoords = getNeighborHexCoords(ringCoords, dir);
+                        //        if (ringLine.x1 < ringCoords[0] || (ringLine.x1 == ringCoords[0] && ringLine.y1 < ringCoords[1])) {
+                        //            ringLine.x2 = ringCoords[0];
+                        //            ringLine.y2 = ringCoords[1];
+                        //        } else {
+                        //            ringLine.x2 = ringLine.x1;
+                        //            ringLine.y2 = ringLine.y1;
+                        //            ringLine.x1 = ringCoords[0];
+                        //            ringLine.y1 = ringCoords[1];
+                        //        }
+                        //        ringLine = JSON.stringify(ringLine);
+                        //        if (ringLines[ringLine]) {
+                        //            ringLines[ringLine].push(hexType.color);
+                        //        } else {
+                        //            ringLines[ringLine] = [hexType.color];
+                        //        }
+                        //    }
+                        //    //ctx.lineTo(centerX * .05 + drawX * .95, centerY * .05 + drawY * .95);
+                        //}
                     }
                 }
             }
         }
+
         //so, ringLines will be a dictionary of encodedCoords, List<color> which allows duplicates.
         const segmentCount = 8;
         ctx.lineWidth = 6;
@@ -328,105 +306,62 @@ $(document).ready(function () {
             [ringLine.x2, ringLine.y2] = getHexCenter(ringLine.x2, ringLine.y2);
 
             ctx.beginPath();
-            //ctx.arc(ringLine.x1, ringLine.y1, ctx.lineWidth / 2, 0, Math.PI * 2);
-            //ctx.arc(ringLine.x2, ringLine.y2, ctx.lineWidth / 2, 0, Math.PI * 2);
             ctx.fillStyle = colors[0];
             ctx.fill();
 
             if (colors.length == 1) {
+                if (colors[0][0] == "_") {
+                    ctx.globalAlpha = 0.5;
+                    colors[0] = colors[0].substr(1, 900);
+                } else if (ctx.globalAlpha == 0.5){
+                    ctx.globalAlpha = 1;
+                }
                 ctx.strokeStyle = colors[0];
                 ctx.beginPath();
                 ctx.moveTo(ringLine.x1, ringLine.y1);
                 ctx.lineTo(ringLine.x2, ringLine.y2);
                 ctx.stroke();
+
             } else {
                 //if there are multiple colors, split the line into 4 segments of length ctx.linewidth and draw accordingly.
                 let ratio = 0;
                 for (var segmentI = 0; segmentI < segmentCount; segmentI++) {
-                    ctx.strokeStyle = colors[segmentI % colors.length];
+                    let c = colors[segmentI % colors.length];
+                    if (c[0] == "_") {
+                        ctx.globalAlpha = 1;
+                        c = c.substr(1, 900);
+                    } else if (ctx.globalAlpha == 0.5) {
+                        ctx.globalAlpha = 1;
+                    }
+                    ctx.strokeStyle = c;
                     ctx.beginPath();
                     ctx.moveTo(ringLine.x1 * ratio + ringLine.x2 * (1 - ratio), Math.round(ringLine.y1 * ratio + ringLine.y2 * (1 - ratio)));
                     ratio += 1 / segmentCount;
                     ctx.lineTo(ringLine.x1 * ratio + ringLine.x2 * (1 - ratio), Math.round(ringLine.y1 * ratio + ringLine.y2 * (1 - ratio)));
                     ctx.stroke();
                 }
-                //offset: if vertical, offset horizontally.  else, offset vertically.
-                //let xOff = 0;
-                //let yOff = 0;
-                //let xOffIncrement = 0;
-                //let yOffIncrement = 0;
-                //if (ringLine.x1 == ringLine.x2) {
-                //    //offset horizontally
-                //    //xOff = -ctx.lineWidth * 4 / colors.length;
-                //    //xOffIncrement = ctx.lineWidth;
-                //    xOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
-                //    xOffIncrement = -ctx.lineWidth;
-                //} else {
-                //    //offset vertically;
-                //    yOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
-                //    yOffIncrement = -ctx.lineWidth;
-                //}
-
-                //for (let color of colors) {
-                //    ctx.strokeStyle = color;
-
-                //    ctx.beginPath();
-                //    ctx.lineTo(ringLine.x1 + xOff, ringLine.y1 + yOff);
-                //    ctx.lineTo(ringLine.x2 + xOff, ringLine.y2 + yOff);
-                //    ctx.stroke();
-                //    ctx.arc(ringLine.x1 + xOff, ringLine.y1 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
-                //    ctx.arc(ringLine.x2 + xOff, ringLine.y2 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
-                //    ctx.fillStyle = color;
-                //    ctx.fill();
-                //    xOff += xOffIncrement;
-                //    yOff += yOffIncrement;
-                //    }
             }
         }
-        //for (let ringLine in ringLines) {
-        //    let colors = ringLines[ringLine];
-        //    ringLine = JSON.parse(ringLine);
-        //    [ringLine.x1, ringLine.y1] = getHexCenter(ringLine.x1, ringLine.y1);
-        //    [ringLine.x2, ringLine.y2] = getHexCenter(ringLine.x2, ringLine.y2);
-        //    ctx.lineWidth = 8 / colors.length;
-        //    //offset: if vertical, offset horizontally.  else, offset vertically.
-        //    let xOff = 0;
-        //    let yOff = 0;
-        //    let xOffIncrement = 0;
-        //    let yOffIncrement = 0;
-        //    if (ringLine.x1 == ringLine.x2) {
-        //        //offset horizontally
-        //        //xOff = -ctx.lineWidth * 4 / colors.length;
-        //        //xOffIncrement = ctx.lineWidth;
-        //        xOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
-        //        xOffIncrement = -ctx.lineWidth;
-        //    } else {
-        //        //offset vertically;
-        //        yOff = ctx.lineWidth * colors.length / 2 - ctx.lineWidth / 2;
-        //        yOffIncrement = -ctx.lineWidth;
-        //    }
+        ctx.globalAlpha = 1;
 
-        //    for (let color of colors) {
-        //        ctx.strokeStyle = color;
+        //Draw clues now, so they aren't obscured by rings 
+        for (let cell of clueCells) {
+            let hexType = hexTypes[cell.hexTypeID];
+            let coords = drawBlock(cell.x, cell.y, hexType.color);
+            if (cell.number) {
+                //draw number
+                ctx.font = linelen + 'px sans-serif';
+                drawString(cell.number % 7, Math.round(coords[0] + HEX_W / 2), Math.round(coords[1] + HEX_H / 2 - 12 + linelen / 8), "black");
 
-        //        ctx.beginPath();
-        //        ctx.lineTo(ringLine.x1 + xOff, ringLine.y1 + yOff);
-        //        ctx.lineTo(ringLine.x2 + xOff, ringLine.y2 + yOff);
-        //        ctx.stroke();
-        //        ctx.arc(ringLine.x1 + xOff, ringLine.y1 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
-        //        ctx.arc(ringLine.x2 + xOff, ringLine.y2 + yOff, ctx.lineWidth / 2, 0, Math.PI * 2);
-        //        ctx.fillStyle = color;
-        //        ctx.fill();
-        //        xOff += xOffIncrement;
-        //        yOff += yOffIncrement;
-        //    }
-        //}
+                //draw colorblind-friendly letter.
+                ctx.font = linelen / 2 + 'px sans-serif';
+                drawString(hexType.symbol, Math.round(coords[0] + HEX_W / 2 - linelen / 2), Math.round(coords[1] + HEX_H / 2 - 12), "black");
+            }
+        }
+        ctx.font = '20px sans-serif';
 
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'black';
-        for (let [s, x, y, c] of drawStrings) {
-            drawString(s, x, y, c);
-        }
 
         drawToolbox();
 
@@ -465,7 +400,11 @@ $(document).ready(function () {
         }
         lines.length = boardHeight + 1;
 
-        var boardDef = Math.ceil(COLS / 2) + "~" + description + "~" + JSON.stringify(thermos) + "~" + lines.join(";").replace(/@/g, ".");
+        let ringRadiusList = [];
+        for (var i = 0; i < hexTypes.length; i++) {
+            ringRadiusList[i] = hexTypes[i].radius || 0;
+        };
+        var boardDef = Math.ceil(COLS / 2) + "~" + description + "~" + JSON.stringify(ringRadiusList) + "~" + lines.join(";").replace(/@/g, ".");
         return boardDef;
 
         //$("#txtBoardDefinition").val(boardDef);
@@ -508,6 +447,9 @@ $(document).ready(function () {
         }
     }
     function addMouseOverText(text, type, left, top, right, bottom) {
+        if (!Array.isArray(text)) {
+            text = [text];
+        }
         mouseOverTexts.push({
             text: text,
             type: type,
@@ -521,7 +463,7 @@ $(document).ready(function () {
         for (var i = mouseOverTexts.length - 1; i >= 0; i--) {
             var mouseOverText = mouseOverTexts[i];
             if (mouseOverText.left <= mouseX && mouseX <= mouseOverText.right && mouseOverText.top <= mouseY && mouseY <= mouseOverText.bottom) {
-                if (typeof mouseOverText.text == "string") {
+                if (Array.isArray(mouseOverText.text)) {
                     return mouseOverText.text;
                 } else {
                     return mouseOverText.text();
@@ -564,22 +506,28 @@ $(document).ready(function () {
         }
 
         if (eventType == "move") {
-            if (currentTool == "Pencil") {
-                var prevHexCoords = getMouseHexCoords(prevMouseX, prevMouseY);
-                var hexCoords = getMouseHexCoords(mouseX, mouseY);
-                if (prevHexCoords[0] != hexCoords[0] || prevHexCoords[1] != hexCoords[1]) {
-                    usePencil(mouseX, mouseY, e.shiftKey, e.ctrlKey);
-                }
+            var prevHexCoords = getMouseHexCoords(prevMouseX, prevMouseY);
+            var hexCoords = getMouseHexCoords(mouseX, mouseY);
+            if (prevHexCoords[0] != hexCoords[0] || prevHexCoords[1] != hexCoords[1]) {
+                usePencil(mouseX, mouseY, e.shiftKey, e.ctrlKey);
             }
             if (showingMouseOver) {
                 showingMouseOver = false;
                 drawBoard();
             }
             var mouseOverText = getMouseOverTextAtCoords(mouseX, mouseY);
-            if (mouseOverText) {
-                drawString(mouseOverText, mouseX, mouseY + 20, "black", "white");
+            if (mouseOverText && mouseOverText[0]) {
+                let mtX = 258;
+                let mtY = 5;
+                ctx.clearRect(mtX - 5, mtY - 5, canvasW - mtX, 30 * mouseOverText.length);
+                for (let textLine of mouseOverText) {
+                    drawString(textLine, mtX, mtY, "black", "white");
+                    mtY += 20;
+                }
+                //drawString(mouseOverText, mouseX, mouseY + 20, "black", "white");
                 showingMouseOver = true;
             }
+
         } else if (eventType == "down") {
             var handled = false;
             //check tools first
@@ -591,83 +539,10 @@ $(document).ready(function () {
             if (!handled) {
                 //check board
                 isMouseDown = true;
-                if (currentTool == "Thermo") {
-                    var hexCoords = getMouseHexCoords(mouseX, mouseY);
-                    if (inBoard(hexCoords[0], hexCoords[1])) {
-                        let cell = getBoardCell(hexCoords);
-                        if (cell) {
-                            registerBoardChange();
-                            //check if this is in a thermo.  if so, remove this cell and all above it.
-                            //todo: clean up thermos which are contained within other thermos, to handle case when we just trimmed off a split portion.
-                            let foundit = false;
-                            for (let tidx = thermos.length - 1; tidx >= 0; tidx--) {
-                                for (let tidx2 = 0; tidx2 < thermos[tidx].length; tidx2++) {
-                                    var thermocellcoords = thermos[tidx][tidx2]
-                                    if (thermocellcoords[0] == cell.x && thermocellcoords[1] == cell.y) {
-                                        foundit = true;
-                                        if (tidx2 == 0) {
-                                            thermos.splice(tidx, 1);
-                                        } else {
-                                            thermos[tidx].splice(tidx2, thermos[tidx].length - tidx2);
-                                        }
-                                        break;
-                                    }
-                                }
-                                if (foundit) break;
-                            }
-                            if (!foundit) {
-                                //if not, check if adjacent cells are in any thermos.  if so, add to the nearest thermo cell.
-                                let closestAdjacentThermo = null;
-                                let closestAdjacentThermoCellID = null;
-                                let closestAdjacentThermoDist = 1000000;
-                                for (let neighborcell of getAllNeighborHexCoords(hexCoords)) {
-                                    //check all thermos to see if they exist.
-                                    foundit = false;
-                                    for (let thermo of thermos) {
-                                        //for (let thermocell of thermo) {
-                                        for (let tidx = 0; tidx < thermo.length; tidx++) {
-                                            if (neighborcell[0] == thermo[tidx][0] && neighborcell[1] == thermo[tidx][1]) {
-                                                let neighborcenter = getHexCenter(neighborcell[0], neighborcell[1]);
-                                                let dist = Math.pow(mouseX - neighborcenter[0], 2) + Math.pow(mouseY - neighborcenter[1], 2);
-                                                if (dist < closestAdjacentThermoDist) {
-                                                    closestAdjacentThermo = thermo;
-                                                    closestAdjacentThermoCellID = tidx;
-                                                    closestAdjacentThermoDist = dist;
-                                                }
-                                                foundit = true;
-                                                break;
-                                            }
-                                        }
-                                        if (foundit) break;
-                                    }
-                                }
-                                if (closestAdjacentThermo) {
-                                    //put cell onto end of existing thermo.
-                                    if (closestAdjacentThermoCellID == closestAdjacentThermo.length - 1) {
-                                        closestAdjacentThermo.push([cell.x, cell.y]);
-                                    } else {
-                                        //create new thermo split from last, with this cell as last one.
-                                        let newthermo = [];
-                                        for (let tidx = 0; tidx <= closestAdjacentThermoCellID; tidx++) {
-                                            newthermo.push([closestAdjacentThermo[tidx][0], closestAdjacentThermo[tidx][1]]);
-                                        }
-                                        newthermo.push([cell.x, cell.y]);
-                                        thermos.push(newthermo);
-                                    }
-                                } else {
-                                    //start new thermo.
-                                    thermos.push([[cell.x, cell.y]]);
-                                }
-                            }
-                            drawBoard();
-                        }
-                    }
-                } else if (currentTool == "Pencil") {
-                    var boardJSON = getBoardJSON();
-                    mouseMovingColor = 0;
-                    if (usePencil(mouseX, mouseY, e.shiftKey, e.ctrlKey)) {
-                        registerBoardChange(boardJSON);
-                    }
+                var boardJSON = getBoardJSON();
+                mouseMovingColor = 0;
+                if (usePencil(mouseX, mouseY, e.shiftKey, e.ctrlKey)) {
+                    registerBoardChange(boardJSON);
                 }
             }
         } else if (eventType == "up") {
@@ -678,7 +553,7 @@ $(document).ready(function () {
         }
     }
     function getBoardJSON() {
-        return JSON.stringify({ "desc": description, "board": board, "thermos": thermos });
+        return JSON.stringify({ "desc": description, "board": board, "hexTypes": hexTypes });
     }
     function registerBoardChange(boardJSON) {
         undoboards.push(boardJSON || getBoardJSON());
@@ -717,10 +592,71 @@ $(document).ready(function () {
         board = b.board;
         description = b.desc;
         $("#hTitle").text(description);
-        thermos = b.thermos;
-        resetBoardDisplay();
+        hexTypes = b.hexTypes;
     }
 
+    function toolClickAutoUnshade() {
+        //from each shaded cell, shade off all None cells on all axes.
+        for (var x = 0; x < COLS; ++x) {
+            for (var y = 0; y < ROWS; ++y) {
+                let cell = getBoardCell([x, y]);
+                if (cell && cell.hexTypeID == 3) {
+                    for (let dir = 0; dir < 6; dir++) {
+                        let neighborCellCoords = [cell.x, cell.y];
+                        let neighborCell = cell;
+                        while (neighborCell) {
+                            neighborCellCoords = getNeighborHexCoords(neighborCellCoords, dir);
+                            neighborCell = getBoardCell(neighborCellCoords);
+                            if (neighborCell) {
+                                if (neighborCell.hexTypeID == 1) {
+                                    setBoardHexType(neighborCellCoords, 2);
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!solveMode) {
+            //check if it's broken.  For each line, check if all shaded.  If so, alert.  If one is unshaded, shade and go again.
+            for (let cellGroup of getColCellGroups(board)) {
+                let allShaded = true;
+                let openCellCoords = [-1, -1];
+                for (let cell of cellGroup) {
+                    if (cell.hexTypeID == 1) {
+                        if (allShaded) {
+                            //found first open cell
+                            openCellCoords = [cell.x, cell.y];
+                        } else {
+                            //found second+ open cell
+                            openCellCoords = [-1, -1];
+                        }
+                        allShaded = false;
+                    }
+                    if (cell.hexTypeID == 3)//shaded
+                    {
+                        openCellCoords = [-1, -1];
+                        allShaded = false;
+                        break;
+                    }
+                }
+                if (allShaded) {
+                    console.log("Warning "+Date.now()+": no shaded cells in line containing [" + cellGroup[0].x + "," + cellGroup[0].y + "]");
+                    autoUnshade = false;
+                    return false;
+                } else if (openCellCoords[0] > -1) {
+                    //set as shaded, then go again.
+                    setBoardHexType(openCellCoords, 3);
+                }
+            }
+        }
+        return true;
+    }
+
+    let lastRadiusChangedTime = 0;
     var prevMouseX = null;
     var prevMouseY = null;
     function usePencil(mouseX, mouseY, shiftKey, ctrlKey) {
@@ -737,71 +673,76 @@ $(document).ready(function () {
                     let targetHexTypeID = board[hexCoords[0]][hexCoords[1]].hexTypeID;
 
                     if (targetHexTypeID > 3) {
-                        //found a clue, increase the ring size.
-                        //get max radius by finding closest wall from any hex with this color.
-                        var maxRadius = Math.floor(COLS / 2);
-                        for (let y = 0; y < ROWS; ++y) {
-                            for (let x = 0; x < COLS; ++x) {
-                                let cell = getBoardCell([x, y]);
-                                if (cell && cell.hexTypeID == targetHexTypeID) {
-                                    //travel in all directions until finding a space without a cell.
-                                    for (let dir = 0; dir < 6; dir++) {
-                                        let neighborCoords = [x, y];
-                                        for (let radius = 1; radius <= maxRadius; radius++) {
-                                            neighborCoords = getNeighborHexCoords(neighborCoords, dir);
-                                            let neighborcell = getBoardCell(neighborCoords);
-                                            if (!neighborcell || neighborcell.hexTypeID == 0) {
-                                                maxRadius = radius - 1;
+                        let currentTime = Date.now();
+                        if (currentTime > lastRadiusChangedTime + 100) {
+                            lastRadiusChangedTime = currentTime;
+                            //found a clue, increase the ring size.
+                            //get max radius by finding closest wall from any hex with this color.
+                            var maxRadius = Math.floor(COLS / 2);
+                            for (let y = 0; y < ROWS; ++y) {
+                                for (let x = 0; x < COLS; ++x) {
+                                    let cell = getBoardCell([x, y]);
+                                    if (cell && cell.hexTypeID == targetHexTypeID) {
+                                        //travel in all directions until finding a space without a cell.
+                                        for (let dir = 0; dir < 6; dir++) {
+                                            let neighborCoords = [x, y];
+                                            for (let radius = 1; radius <= maxRadius; radius++) {
+                                                neighborCoords = getNeighborHexCoords(neighborCoords, dir);
+                                                let neighborcell = getBoardCell(neighborCoords);
+                                                if (!neighborcell || neighborcell.hexTypeID == 0) {
+                                                    maxRadius = radius - 1;
+                                                    break;
+                                                }
+                                            }
+                                            if (maxRadius == 1) {
                                                 break;
                                             }
-                                        }
-                                        if (maxRadius == 1) {
-                                            break;
                                         }
                                     }
                                 }
                             }
-                        }
-                        if (event.buttons == 2) {
-                            if (hexTypes[targetHexTypeID].radius > 0) {
-                                hexTypes[targetHexTypeID].radius--;
+                            registerBoardChange();
+                            changed = true;
+                            if (event.buttons == 2) {
+                                if (hexTypes[targetHexTypeID].radius > 0) {
+                                    hexTypes[targetHexTypeID].radius--;
+                                } else {
+                                    hexTypes[targetHexTypeID].radius = maxRadius;
+                                }
                             } else {
-                                hexTypes[targetHexTypeID].radius = maxRadius;
-                            }
-                        } else {
-                            if (hexTypes[targetHexTypeID].radius < maxRadius) {
-                                hexTypes[targetHexTypeID].radius++;
-                            } else {
-                                hexTypes[targetHexTypeID].radius = 0;
+                                if (hexTypes[targetHexTypeID].radius < maxRadius) {
+                                    hexTypes[targetHexTypeID].radius++;
+                                } else {
+                                    hexTypes[targetHexTypeID].radius = 0;
+                                }
                             }
                         }
-                        drawBoard();
                         hexTypeID = 0;
                     } else {
                         if (mouseMovingColor == 0) {
                             if (targetHexTypeID == 1) {
                                 if (event.buttons == 2) {
-                                    //None, set to Shaded
-                                    hexTypeID = 3;
-                                } else {
                                     //None, set to Unshaded
                                     hexTypeID = 2;
+                                } else {
+                                    //None, set to Shaded
+                                    hexTypeID = 3;
                                 }
                             } else if (targetHexTypeID == 2) {
                                 if (event.buttons == 2) {
-                                    //Unshaded, set to None
-                                    hexTypeID = 1;
-                                } else {
                                     //Unshaded, set to Shaded
                                     hexTypeID = 3;
+                                } else {
+                                    //Unshaded, set to None
+                                    hexTypeID = 1;
                                 }
                             } else if (targetHexTypeID == 3) {
                                 if (event.buttons == 2) {
-                                    //Shaded, set to Unshaded
-                                    hexTypeID = 2;
-                                } else {
                                     //Shaded, set to None
                                     hexTypeID = 1;
+                                } else {
+                                    //Shaded, set to Unshaded
+                                    hexTypeID = 2;
                                 }
                             }
                         } else {
@@ -840,23 +781,137 @@ $(document).ready(function () {
                                 setBoardNumber([x, y], (hexType.symbol == "0" ? 7 : Number(hexType.symbol)))
                             }
                             else {
-                                //toggle colors on/off if it's the same clue color.
-                                if (cell.hexTypeID == hexTypeID && hexTypeID > 3) {
-                                    hexTypeID = 1;
+                                //for clues
+                                if (cell.hexTypeID > 3) {
+                                    //toggle colors on/off if it's the same clue color.
+                                    if (cell.hexTypeID == hexTypeID) {
+                                        hexTypeID = 1;
+                                    }
+                                    //double-check its not the solve tool.  Workaround for issue I should debug.
+                                    if (currentHexType != -1) {
+                                        setBoardHexType([x, y], hexTypeID);
+                                    }
+                                } else {
+                                    autoUnshade = true;
+                                    setBoardHexType([x, y], hexTypeID);
                                 }
-                                setBoardHexType([x, y], hexTypeID);
                             }
                             changed = true;
                         }
                     }
                 }
-                drawBoard();
 
                 prevMouseX = mouseX;
                 prevMouseY = mouseY;
             }
         }
+        if (changed) {
+            checkAnswer();
+            drawBoard();
+        }
         return changed;
+    }
+    function checkAnswer() {
+        //check shaded cells, ensure there are correct number and they don't see each other
+
+        let answerValid = true;
+        let shadedCellCount = 0;
+        //check clues, ensure there are correct number of shaded cells on ring.
+        //todo:hide ring on clues that are fulfilled.
+        for (let y = 0; y < ROWS; ++y) {
+            for (let x = 0; x < COLS; ++x) {
+                let cell = getBoardCell([x, y]);
+                if (cell) {
+                    if (answerValid && cell.hexTypeID == 3) {
+                        //found a shaded cell: increment count and check that it sees no other shaded cells
+                        shadedCellCount++;
+                        if (!cell.sudokuCellGroups) (setSudokuCellGroups());
+
+                        for (let group of cell.sudokuCellGroups) {
+                            for (let coords of group.cellCoords) {
+                                if (board[coords[0]][coords[1]].hexTypeID == 3) {
+                                    answerValid = false;
+                                    break;
+                                }
+                            }
+                            if (!answerValid) {
+                                break;
+                            }
+                        }
+                    }
+                    if (cell.hexTypeID > 3) {
+                        //found a clue.  Determine whether it has exactly cell.number shaded cells on perimeter.
+
+                        let hexType = hexTypes[cell.hexTypeID];
+                        if (hexType.radius) {
+                            let clueShadedCellCnt = 0;
+                            let allCellsShaded = true;
+                            for (var cellCoords of getCellRingCoords(cell, hexType.radius)) {
+                                let ringCell = getBoardCell(cellCoords);
+                                if (ringCell) {
+
+                                    if (ringCell.hexTypeID == 3) {
+                                        clueShadedCellCnt++;
+                                    } else if (ringCell.hexTypeID == 1) {
+                                        allCellsShaded = false;
+                                    }
+                                }
+
+
+                            }
+                            if (cell.number % 7 != clueShadedCellCnt) {
+                                answerValid = false;
+                                cell.showRing = true;
+                            } else if (allCellsShaded) {
+                                //hide this ring.
+                                cell.showRing = false;
+                            }
+                        } else {
+                            answerValid = false;
+                        }
+
+                    }
+                    ////travel in all directions until finding a space without a cell.
+                    //for (let dir = 0; dir < 6; dir++) {
+                    //    let neighborCoords = [x, y];
+                    //    for (let radius = 1; radius <= maxRadius; radius++) {
+                    //        neighborCoords = getNeighborHexCoords(neighborCoords, dir);
+                    //        let neighborcell = getBoardCell(neighborCoords);
+                    //        if (!neighborcell || neighborcell.hexTypeID == 0) {
+                    //            maxRadius = radius - 1;
+                    //            break;
+                    //        }
+                    //    }
+                    //    if (maxRadius == 1) {
+                    //        break;
+                    //    }
+                    //}
+                }
+            }
+        }
+        if (answerValid && shadedCellCount == COLS) {
+            isMouseDown = false;
+            setTimeout(function () { alert("Congratulations, you solved the puzzle!") }, 1);
+        }
+
+    }
+    function getCellRingCoords(cell, radius) {
+        let coordsList = [];
+
+        //start at southwest corner.
+        let ringCoords = [cell.x, cell.y];
+        for (let radiusI = 0; radiusI < radius; radiusI++) {
+            ringCoords = getNeighborHexCoords(ringCoords, 4);
+        }
+
+        //travel around the ring radius steps in each direction.
+        for (let dir = 0; dir < 6; dir++) {
+            for (let radiusI = 0; radiusI < radius; radiusI++) {
+                ringCoords = getNeighborHexCoords(ringCoords, dir);
+                coordsList.push(ringCoords);
+            }
+        }
+        return coordsList;
     }
 
     var HexDirections = [
@@ -946,7 +1001,7 @@ $(document).ready(function () {
     //    return log;
     //}
     function setStarBattleCellGroups(starCount) {
-        setSudokuCellGroups(true);
+        setSudokuCellGroups();
         for (var x = 0; x < COLS; ++x) {
             for (var y = 0; y < ROWS; ++y) {
                 var cell = getBoardCell([x, y]);
@@ -954,8 +1009,6 @@ $(document).ready(function () {
                     for (let group of cell.sudokuCellGroups) {
                         group.totalValue = starCount;
                     }
-                    //except just 1 for the adjacent cells.
-                    cell.sudokuCellGroups[0].totalValue = 1;
                 }
             }
         }
@@ -986,9 +1039,6 @@ $(document).ready(function () {
                                 }
                                 if (getBoardCell([x2, y2])) {
                                     axisCoords.push([x2, y2]);
-                                } else {
-                                    //stop looking when passing empty cells.  Remove this to allow gaps within a line while retaining the set.
-                                    break;
                                 }
                             }
                         }
@@ -1007,7 +1057,92 @@ $(document).ready(function () {
         }
         return seenStars;
     }
-
+    let colCellGroupsCoords = [];
+    function getColCellGroups(flatBoard) {
+        if (colCellGroupsCoords.length == 0) {
+            for (let i = 0; i < COLS; i++) {
+                let colGroup = [];
+                for (let j = 0; j < ROWS; j++) {
+                    let cell = flatBoard[i][j];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push([cell.x, cell.y]);
+                    }
+                }
+                if (colGroup.length) {
+                    colCellGroupsCoords.push(colGroup);
+                }
+            }
+            //northwest to southeast, part 1.
+            for (let i = 0; i < COLS; i += 2) {
+                let colGroup = [];
+                let coords = [i, 0];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push([cell.x, cell.y]);
+                    }
+                    coords = getNeighborHexCoords(coords, 0);
+                }
+                if (colGroup.length) {
+                    colCellGroupsCoords.push(colGroup);
+                }
+            }
+            //northwest to southeast, part 2.
+            for (let i = 1; i < ROWS; i++) {
+                let colGroup = [];
+                let coords = [0, i];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push([cell.x, cell.y]);
+                    }
+                    coords = getNeighborHexCoords(coords, 0);
+                }
+                if (colGroup.length) {
+                    colCellGroupsCoords.push(colGroup);
+                }
+            }
+            //southwest to northeast, part 1.
+            for (let i = 1; i < COLS; i += 2) {
+                let colGroup = [];
+                let coords = [i, ROWS - 1];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push([cell.x, cell.y]);
+                    }
+                    coords = getNeighborHexCoords(coords, 1);
+                }
+                if (colGroup.length) {
+                    colCellGroupsCoords.push(colGroup);
+                }
+            }
+            //southwest to northeast, part 2.
+            for (let i = 1; i < ROWS; i++) {
+                let colGroup = [];
+                let coords = [0, i];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push([cell.x, cell.y]);
+                    }
+                    coords = getNeighborHexCoords(coords, 1);
+                }
+                if (colGroup.length) {
+                    colCellGroupsCoords.push(colGroup);
+                }
+            }
+        }
+        var colCellGroups = [];
+        for (let coordsList of colCellGroupsCoords) {
+            let colGroup = [];
+            for (let coords of coordsList) {
+                colGroup.push(flatBoard[coords[0]][coords[1]]);
+            }
+            colCellGroups.push(colGroup);
+        }
+        return colCellGroups;
+    }
     function getMouseHexCoords(mouseX, mouseY) {
         //todo: limit the seach space if time is a factor
         for (var x = 0; x < board.length; ++x) {
@@ -1027,12 +1162,21 @@ $(document).ready(function () {
             return undefined;
         }
     };
+    let autoUnshade = false;
     function setBoardHexType(hexCoords, hexTypeID) {
         var cell = board[hexCoords[0]][hexCoords[1]];
         if (typeof cell != 'undefined') {
             cell.hexTypeID = hexTypeID;
+            if (autoUnshade && !solveMode && hexTypeID == 3) {
+                registerBoardChange();
+                if (!toolClickAutoUnshade()) {
+                    undoBoardChange();
+                    cell.hexTypeID = 1;
+                }
+            }
+            cell.showRing = true;
         } else {
-            board[hexCoords[0]][hexCoords[1]] = new Cell(hexCoords[0], hexCoords[1], hexTypeID, 0);
+            board[hexCoords[0]][hexCoords[1]] = new Cell(hexCoords[0], hexCoords[1], hexTypeID, 0, null, true);
         }
     };
     function setBoardNumber(hexCoords, number) {
@@ -1285,9 +1429,13 @@ $(document).ready(function () {
         }
     };
 
-    var canvas = document.getElementById('canvas');
-    var canvasW = canvas.width;
-    var canvasH = canvas.height;
+    var $canvas = $("canvas");// = document.getElementById('canvas');
+    var canvasW = Math.min($canvas.width(), $canvas.height());
+    var canvasH = canvasW;
+    canvas.width = canvasW;
+    canvas.height = canvasH;
+    $canvas.width(canvasW);
+    $canvas.height(canvasH);
     var linelen = 20;//6;//20;//
     var HEX_W;
     var HEX_H;
@@ -1314,10 +1462,18 @@ $(document).ready(function () {
     var COLS = 13;//19;//
     var ROWS = 13;//13;//19;// //N rows, plus creating a V at the bottom.  with COLS = 11, this means 5 extra rows.
     var board;
-    var boardDisplay;
     var undoboards;//used for undo
     var redoboards;//used for redo
-    var thermos = [];
+    var solveMode = true;
+
+    function toggleSolveMode() {
+        solveMode = !solveMode;
+        if (solveMode) {
+            currentHexType = -1;
+        }
+        createTools();
+        drawBoard();
+    }
 
     var description;
 
@@ -1341,12 +1497,12 @@ $(document).ready(function () {
         "Unshaded": "Unshaded",
         "Shaded": "Shaded",
         "Red": "Red",
-        "Orange": "Orange",
         "Yellow": "Yellow",
-        "Green": "Lime",
-        "DarkGreen": "Green",
+        "Green": "Green",
+        "Teal": "Teal",
         "Blue": "Blue",
         "Purple": "Purple",
+        "Violet": "Violet",
         "Zero": "0",
         "One": "1",
         "Two": "2",
@@ -1374,38 +1530,38 @@ $(document).ready(function () {
             symbol: "",//"#",
         }, {
             name: hexTypeNames.Red,
-            color: "crimson",
-            symbol: "",//"➕",
-            radius: 0,
-        }, {
-            name: hexTypeNames.Orange,
-            color: "orange",
-            symbol: "",//"➕",
+            color: "#D91B4E",
+            symbol: "A",//"➕",
             radius: 0,
         }, {
             name: hexTypeNames.Yellow,
-            color: "gold",
-            symbol: "",//"☇",
+            color: "#f0c600",//"Goldenrod",
+            symbol: "B",//"➕",
             radius: 0,
         }, {
             name: hexTypeNames.Green,
-            color: "lawngreen",
-            symbol: "",//"☆",
+            color: "LimeGreen",
+            symbol: "C",//"☇",
             radius: 0,
         }, {
-            name: hexTypeNames.DarkGreen,
-            color: "Green",
-            symbol: "",//"★",
+            name: hexTypeNames.Teal,
+            color: "Turquoise",
+            symbol: "D",//"☆",
             radius: 0,
         }, {
             name: hexTypeNames.Blue,
-            color: "dodgerblue",
-            symbol: "",//"⛨",
+            color: "#2180BE",//1A6699  
+            symbol: "E",//"★",
             radius: 0,
         }, {
             name: hexTypeNames.Purple,
-            color: "Purple",
-            symbol: "",//"★",
+            color: "RebeccaPurple",
+            symbol: "F",//"⛨",
+            radius: 0,
+        }, {
+            name: hexTypeNames.Violet,
+            color: "Violet",
+            symbol: "G",//"★",
             radius: 0,
         },
         {
@@ -2403,7 +2559,7 @@ $(document).ready(function () {
             "Q Q Q Q" +
             "QQ   QQ" +
             " ");
-        pushToPixels(hexTypes[hexTypeMap[hexTypeNames.DarkGreen]].symbol, "Q" +
+        pushToPixels(hexTypes[hexTypeMap[hexTypeNames.Teal]].symbol, "Q" +
             "  QQQ  " +
             "QQQQQQQ" +
             "QQQQQQQ" +
@@ -2450,7 +2606,6 @@ $(document).ready(function () {
             " ");
     })();
 
-    var currentTool = "Pencil";
     var currentHexType = -1;
     var tools = [];
     var mouseOverTexts = [];
@@ -2458,652 +2613,571 @@ $(document).ready(function () {
     var toolMargin = 5;
     var toolWidth = 30;
     var toolHeight = 30;
-    var toolColumns = 7;
     var toolBoxLeft = toolMargin + .5;//canvasW - .5 - (toolWidth + toolMargin) * toolColumns;
 
-    for (var i = 1; i < hexTypes.length; i++) {
-        var shortcutKey = "key_" + hexTypes[i].name;
-        if (shortcutKey)
+    function createTools() {
+        tools = [];
+
+
+        tools.push({
+            name: "Undo (or Ctrl+z)(+Shift to undo 10 steps at a time)",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function (ctrlKey, shiftKey) {
+                undoBoardChange(shiftKey ? 10 : 1);
+                drawBoard();
+            },
+            draw: "<",
+        });
+        tools.push({
+            name: "Redo (or Ctrl+z)(+Shift to redo 10 steps at a time)",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function (ctrlKey, shiftKey) {
+                redoBoardChange(shiftKey ? 10 : 1);
+                drawBoard();
+            },
+            draw: ">",
+        });
+
+
+        tools.push({
+            name: "Auto-unshade",
+            color: "lightgray",
+            click: function () {
+                registerBoardChange();
+                toolClickAutoUnshade();
+
+                drawBoard();
+            },
+            draw: "//",
+        });
+
+
+
+        //tools.push({
+        //    name: "Flip Horizontally (Ctrl+click for Vertically).  This will reset the Undo/Redo.",
+        //    color: "lightgray",
+        //    //shortcutKey: "^up",
+        //    click: function (ctrlKey) {
+        //        let boardCopy = getBoardCopy(board);
+        //        for (let colIdx = 0; colIdx < COLS; colIdx++) {
+        //            for (let rowIdx = 0; rowIdx < ROWS; rowIdx++) {
+        //                if (ctrlKey) {
+        //                    if (colIdx % 2 == 0) {
+        //                        if (inBoard(colIdx, ROWS - rowIdx)) {
+        //                            board[colIdx][rowIdx] = boardCopy[colIdx][ROWS - rowIdx];
+        //                        }
+        //                    } else {
+        //                        if (inBoard(colIdx, ROWS - 1 - rowIdx)) {
+
+        //                            board[colIdx][rowIdx] = boardCopy[colIdx][ROWS - 1 - rowIdx];
+        //                        }
+        //                    }
+        //                } else {
+        //                    board[colIdx][rowIdx] = boardCopy[COLS - 1 - colIdx][rowIdx];
+        //                }
+        //            }
+        //        }
+        //        drawBoard();
+        //        importBoard();
+        //    },
+        //    draw: "><",
+        //});
+
+        //tools.push({
+        //    name: "Placeholder",
+        //    color: "lightgray",
+        //    //shortcutKey: "^up",
+        //    click: function () {
+        //    },
+        //    draw: "?",
+        //});
+
+        tools.push({
+            name: "Clear shading",
+            color: "lightgray",
+            shortcutKey: "delete",
+            click: function (ctrlKey) {
+                registerBoardChange();
+                for (var x = 0; x < COLS; ++x) {
+                    for (var y = 0; y < ROWS; ++y) {
+                        let cell = getBoardCell([x, y]);
+                        if (cell && cell.hexTypeID > 0 && cell.hexTypeID <= 3) {
+                            setBoardHexType([cell.x, cell.y], 1);
+                        }
+                    }
+                }
+                checkAnswer();
+                drawBoard();
+            },
+            draw: "X",
+        });
+        tools.push({
+            name: "Save changes to new tab/URL",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function () {
+                window.open("Sonari.html?boardDef=" + escape(getBoardDef()));
+            },
+            draw: "⍈",
+        });
+        tools.push({
+            name: solveMode ? "Edit mode" : "Solve mode",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function () {
+                toggleSolveMode();
+            },
+            draw: "✎",
+        });
+
+        if (!solveMode) {
+            for (var i = 4; i < hexTypes.length; i++) {
+                var shortcutKey = "key_" + hexTypes[i].name;
+                if (shortcutKey)
+
+                    tools.push({
+                        name: "",//"Draw: " + hexTypes[i].name,// + " (" + i.toString() + ")",
+                        hexType: i,
+                        color: hexTypes[i].color,
+                        symbol: hexTypes[i].symbol,
+                        shortcutKey: hexTypes[i].shortcutKey,//"key_" + hexTypes[i].name,
+                        click: function () {
+                            currentHexType = this.hexType;
+                            drawBoard();
+                        },
+                        draw: function () {
+                            if (currentHexType == this.hexType) {
+                                drawToolShadow(this);
+                            }
+                            drawString(this.symbol, this.x + this.width / 2 - 6.5, this.y + 3.5, "black");
+                        }
+                    });
+            }
+        }
+
+        //for (var i = 1; i <= 9; i++) {
+        //    tools.push({
+        //        name: "Number " + i + " (" + i.toString() + ")",
+        //        color: "gray",
+        //        symbol: i,
+        //        shortcutKey: "key_" + i,
+        //        click: function () {
+        //            currentHexType = this.hexType;
+        //            drawBoard();
+        //        },
+        //        draw: function () {
+        //            if (currentHexType == this.hexType) {
+        //                drawToolShadow(this);
+        //            }
+        //            drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
+        //        }
+        //    });
+        //}
+        if (!solveMode) {
 
             tools.push({
-                name: "",//"Draw: " + hexTypes[i].name,// + " (" + i.toString() + ")",
-                hexType: i,
-                color: hexTypes[i].color,
-                symbol: hexTypes[i].symbol,
-                shortcutKey: hexTypes[i].shortcutKey,//"key_" + hexTypes[i].name,
+                name: "Change board size",
+                color: "lightgray",
+                shortcutKey: "delete",
                 click: function () {
-                    currentHexType = this.hexType;
-                    if (currentTool == "Thermo") {
-                        currentTool = "Pencil";
+                    let sidelen = prompt("(Warning: this will delete everything off the board)\nNew board side length (3-11):", Math.ceil(COLS / 2));
+                    if (sidelen && Number.isInteger(Number(sidelen)) && Number(sidelen) >= 3 && Number(sidelen) <= 32) {
+                        COLS = Number(sidelen) * 2 - 1;
+                        ROWS = COLS;
+                        resetBoard();
+                        recalcDrawingOffsets();
+                        drawBoard();
+                        colCellGroupsCoords = [];
                     }
+                },
+                draw: "⌬",
+            });
+
+            tools.push({
+                name: ["Find a solution for shaded cells", "(Ctrl+click to check all possible solutions)"],
+                color: "lightgray",
+                click: function (ctrlKey, shiftKey) {
+                    //populate all possibilities on the grid as display data.
+
+                    registerBoardChange();
+                    console.time("prep");
+
+                    var starCount = 1;
+                    if (starCount == "") return;
+                    starCount = Number(starCount);
+                    while (!Number.isInteger(starCount)) {
+                        starCount = prompt("# of stars per line/region (Must be a number):");
+                        if (starCount == "") return;
+                        starCount = Number(starCount);
+                    }
+
+                    let verifyCount = 0;
+                    let setCount = 0;
+                    let revertCount = 0;
+                    let finalCheckCount = 0;
+                    let solBoardCount = 0;
+                    let maxSolutionBoards = 50;
+
+                    setStarBattleCellGroups(starCount);
+                    var flatBoard = getBoardCopy();
+                    let finalCheckGroups = getColCellGroups(flatBoard);
+
+                    var solutionBoards = [];
+
+                    let processingStartTime = Date.now();
+                    let timeLimitExceeded = false;
+                    let timelimit = 15000;
+
+                    function starBattleSolver(flatBoard, cellList, startingIdx) {
+                        //for each cell, 
+                        //if cell has no number
+                        //check if it's valid to set cell to 2 (ON).  AKA check for other cells on the axes with value 2.
+                        //if it's valid, set cell = 2.  else set to 1 and move on.
+                        //at the end, check if it's valid.  Should be able to just go through columns to check, as by definition others will be correct.  If not, return false and recurse.
+                        //recurse: if it's good (aka all columns have exactly 2 stars), return true;
+                        //else, set value to 1, then go on to the next X.
+                        for (let i = startingIdx || 0, len = cellList.length; i < len; i++) {
+                            var cell = cellList[i];
+                            if (cell.hexTypeID == 1) {
+                                verifyCount++;
+
+                                let isPossibleStar = true;
+                                //let groupAvailability = [];
+                                for (let group of cell.sudokuCellGroups) {
+                                    //let availability = group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords);
+                                    //  groupAvailability.push(availability);
+                                    //if (availability < 1) {
+                                    if (group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords) < 1) {
+
+                                        isPossibleStar = false;
+                                        break;
+                                    }
+                                }
+                                if (isPossibleStar) {
+                                    cell.hexTypeID = 3;
+
+                                    setCount++;
+                                    if (starBattleSolver(flatBoard, cellList, i + 1)) {
+                                        return true;
+                                    } else {
+                                        cell.hexTypeID = 1;
+
+                                        revertCount++;
+                                        if (Date.now() - processingStartTime > timelimit) {
+                                            if (timeLimitExceeded == false) {
+                                                let addlSeconds = prompt((timelimit / 1000) + " second time limit exceeded.  How many more seconds do you want to give it?", "0");
+                                                if (!isNaN(Number(addlSeconds)) && Number(addlSeconds) > 0) {
+                                                    processingStartTime = Date.now();
+                                                    timelimit = Number(addlSeconds) * 1000;
+                                                } else {
+                                                    timeLimitExceeded = true;
+                                                    drawBoard();
+                                                }
+                                            }
+                                            if (timeLimitExceeded) {
+                                                return false;
+                                            }
+                                        }
+                                        //if (shiftKey) {
+                                        //    solutionBoards.push(JSON.stringify(flatBoard));
+                                        //    return true;
+                                        //}
+                                    }
+                                    //} else {
+                                    //    cell.number = 1;
+                                }
+                            }
+                        }
+
+                        //todo: better final check, showing that every line in each direction do have exactly starCount stars.
+                        //do final check that every star sees exactly N - 1 other stars.Surely there's a better way to do this, but oh well.
+                        finalCheckCount++;
+                        for (let group of finalCheckGroups) {
+                            let hasCells = false;
+                            let colStarCount = 0;
+                            for (let cell of group) {
+                                //if there are any cells, there must be starCount stars.
+                                if (cell.hexTypeID > 0) {
+                                    hasCells = true;
+                                    if (cell.hexTypeID == 3) {
+                                        colStarCount++;
+                                    }
+                                }
+                            }
+                            if (hasCells && colStarCount != starCount) {
+                                return false;
+                            }
+                        }
+
+                        //for (let i = 0, len = cellList.length; i < len; i++) {
+                        //    var cell = cellList[i];
+                        //    if (cell.hexTypeID > 0 && cell.number == 2) {
+                        //        for (let group of cell.sudokuCellGroups) {
+                        //            if (getNumStarsInGroup(flatBoard, group.cellCoords) + 1 != group.totalValue) {
+                        //                return false;
+                        //            }
+                        //        }
+                        //    }
+                        //}
+
+                        solBoardCount++;
+                        solutionBoards.push(JSON.stringify(flatBoard));
+                        if (!ctrlKey) {
+                            return true;
+                        } else {
+                            if (solutionBoards.length >= maxSolutionBoards) {
+                                //dedupe boards
+                                solutionBoards = dedupeArray(solutionBoards);
+
+                                //truly unique
+                                if (solutionBoards.length >= maxSolutionBoards) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+
+
+                    let cellList = [];
+                    for (let i = 0; i < COLS; i++) {
+                        for (let j = 0; j < ROWS; j++) {
+                            let cell = flatBoard[i][j];
+                            if (cell.hexTypeID > 0) {
+                                cellList.push(cell);
+                            }
+                        }
+                    }
+
+                    //naively turn off cells that are already fulfilled.
+                    let boardJSON = getBoardJSON();
+                    let changed = false;
+                    for (let group of finalCheckGroups) {
+                        let colStarCount = 0;
+                        for (let cell of group) {
+                            //if there are any cells, there must be starCount stars.
+                            if (cell.hexTypeID > 0) {
+                                if (cell.hexTypeID == 3) {
+                                    colStarCount++;
+                                    for (let ncoords of getAllNeighborHexCoords([cell.x, cell.y])) {
+                                        let c2 = getBoardCell(ncoords);
+                                        if (c2 && c2.hexTypeID > 0) {
+                                            c2.hexTypeID = 2;
+                                            changed = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (colStarCount == starCount) {
+                            for (let cell of group) {
+                                //if there are any cells, there must be starCount stars.
+                                if (cell.hexTypeID == 1) {
+                                    let c = getBoardCell([cell.x, cell.y]);
+                                    c.hexTypeID = 2;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                    if (changed) {
+                        registerBoardChange(boardJSON);
+                    }
+
+
+                    //shuffleArray(cellList);
+
+                    console.timeEnd("prep");
+                    console.time("solve");
+                    starBattleSolver(flatBoard, cellList);
+                    if (timeLimitExceeded) {
+                        return;
+                    }
+                    console.timeEnd("solve");
+                    console.time("update");
+
+                    //todo: reduce possible solutionboards - for some reason it's allowing duplicates.
+                    //let jsonBoards = [];
+                    //for (var sboard in solutionboards) {
+                    //    jsonBoards = JSON.stringify(sboard);
+                    //}
+                    //solutionBoards = dedupeArray(jsonBoards);
+
+                    let unpackedSolutionBoards = [];
+                    for (var solBoard of solutionBoards) {
+                        unpackedSolutionBoards.push(JSON.parse(solBoard));
+                    }
+
+                    if (solutionBoards.length && solutionBoards.length != maxSolutionBoards) {
+                        for (let i = 0; i < COLS; i++) {
+                            for (let j = 0; j < ROWS; j++) {
+                                var cell = getBoardCell([i, j]);
+                                if (cell && cell.hexTypeID > 0 && cell.hexTypeID < 3) {
+                                    var isAlwaysShaded = true;
+                                    var isAlwaysUnshaded = true;
+                                    for (let solBoard of unpackedSolutionBoards) {
+                                        if (solBoard[i][j].hexTypeID == 3) {
+                                            isAlwaysUnshaded = false;
+                                        } else {
+                                            isAlwaysShaded = false;
+
+                                        }
+                                    }
+                                    if (isAlwaysShaded) {
+                                        setBoardHexType([i, j], 3);
+                                    } else if (isAlwaysUnshaded) {
+                                        setBoardHexType([i, j], 2);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    console.timeEnd("update");
+
+                    console.log("verifies:" + verifyCount);
+                    console.log("sets:" + setCount);
+                    console.log("reverts:" + revertCount);
+                    console.log("final checks:" + finalCheckCount);
+                    solBoardCount = solutionBoards.length;
+                    console.log("solution board count:" + solBoardCount);
+
+                    if (ctrlKey) {
+                        console.log(solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution(s)");
+                        alert("This shaded cell layout has " + solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution" + (solBoardCount == 1 ? "" : "s"));
+                    } else {
+                        if (solBoardCount == 0) {
+                            alert("This shaded cell layout has 0 solutions");
+                        }
+                    }
+
+
                     drawBoard();
                 },
-                draw: function () {
-                    if (currentHexType == this.hexType) {
-                        drawToolShadow(this);
-                    }
-                    drawString(this.symbol, this.x + this.width / 2 - 6.5, this.y + 3.5, "black");
-                }
+                draw: "✓",
             });
-    }
+        }
+        //place shading tools just before undo/redo
+        //        tools.push(tools.shift());
+        //        tools.push(tools.shift());
+        //        tools.push(tools.shift());
 
-    //for (var i = 1; i <= 9; i++) {
-    //    tools.push({
-    //        name: "Number " + i + " (" + i.toString() + ")",
-    //        color: "gray",
-    //        symbol: i,
-    //        shortcutKey: "key_" + i,
-    //        click: function () {
-    //            currentHexType = this.hexType;
-    //            drawBoard();
-    //        },
-    //        draw: function () {
-    //            if (currentHexType == this.hexType) {
-    //                drawToolShadow(this);
-    //            }
-    //            drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
-    //        }
-    //    });
-    //}
-    tools.push({
-        name: "Clear shading",
-        color: "lightgray",
-        shortcutKey: "delete",
-        click: function (ctrlKey) {
-            registerBoardChange();
-            for (var x = 0; x < COLS; ++x) {
-                for (var y = 0; y < ROWS; ++y) {
-                    let cell = getBoardCell([x, y]);
-                    if (cell && cell.hexTypeID > 0 && cell.hexTypeID <= 3) {
-                        setBoardHexType([cell.x, cell.y], 1);
-                    }
-                }
-            }
-            drawBoard();
-        },
-        draw: "X",
-    });
-    tools.push({
-        name: "Change board size",
-        color: "lightgray",
-        shortcutKey: "delete",
-        click: function () {
-            let sidelen = prompt("(Warning: this will delete everything off the board)\nNew board side length (3-11):", Math.ceil(COLS / 2));
-            if (sidelen && Number.isInteger(Number(sidelen)) && Number(sidelen) >= 3 && Number(sidelen) <= 11) {
-                COLS = Number(sidelen) * 2 - 1;
-                ROWS = COLS;
-                resetBoard();
-                recalcDrawingOffsets();
+        //tools.push({
+        //    name: "About",
+        //    color: "lightgray",
+        //    click: function () {
+        //        alert(
+        //            "Sonari setter/solver by BenceJoful\nVersion 0.0.1\nOriginal puzzle genre by Qinlux\n\nKeyboard shortcuts: Ctrl+z"
+        //        );
+        //    },
+        //    draw: "@",
+        //});
+        let solvingTool = {
+            name: "Solve: click to shade/unshade and modify ring sizes",
+            color: solvingGradient,
+            symbol: "",//"~",
+            shortcutKey: "+`",
+            click: function () {
+                currentHexType = -1;
                 drawBoard();
+            },
+            draw: function () {
+                if (currentHexType == -1) {
+                    drawToolShadow(this);
+                }
+                drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
+
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = "crimson";
+                setPathCoords(this.x + this.width / 10, this.y + this.height / 10, 10 / linelen);
+                ctx.stroke();
+                ctx.strokeStyle = "dodgerblue";
+                setPathCoords(this.x + this.width / 2.3, this.y + this.height / 2.3, 6 / linelen);
+                ctx.stroke();
+                ctx.lineWidth = 1;
+
             }
-        },
-        draw: "⌬",
-    });
+        }
+        if (!solveMode) {
+            tools.splice(6, 0, solvingTool);
+        }
+        let toolRowCounts = [7, 7, 7];
+        let toolRowBreak = toolRowCounts.shift() - 1;
+        //layout tools in columnar grid.
+        let toolX = toolBoxLeft;
+        let toolY = toolMargin - .5;
+        for (var i = 0; i < tools.length; i++) {
+            var tool = tools[i];
+            tool.height = toolHeight;
+            tool.width = toolWidth;
+            tool.x = toolX;
+            tool.y = toolY;
 
-    tools.push({
-        name: "Auto-unshade",
-        color: "lightgray",
-        click: function () {
-            registerBoardChange();
-            //from each shaded cell, shade off all None cells on all axes.
-            for (var x = 0; x < COLS; ++x) {
-                for (var y = 0; y < ROWS; ++y) {
-                    let cell = getBoardCell([x, y]);
-                    if (cell && cell.hexTypeID == 3) {
-                        for (let dir = 0; dir < 6; dir++) {
-                            let neighborCellCoords = [cell.x, cell.y];
-                            let neighborCell = cell;
-                            while (neighborCell) {
-                                neighborCellCoords = getNeighborHexCoords(neighborCellCoords, dir);
-                                neighborCell = getBoardCell(neighborCellCoords);
-                                if (neighborCell) {
-                                    if (neighborCell.hexTypeID == 1) {
-                                        setBoardHexType(neighborCellCoords, 2);
-                                    }
-                                } else {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
+            toolX += toolMargin + toolWidth;
+            if (i == toolRowBreak) {
+                toolX = toolBoxLeft;
+                toolY += toolMargin + toolHeight;
+                toolRowBreak += toolRowCounts.shift();
             }
+        }
 
-            drawBoard();
-        },
-        draw: "//",
-    });
+        ////layout tools in columnar grid.
+        //for (var i = 0; i < tools.length; i++) {
+        //    var tool = tools[i];
+        //    tool.x = toolBoxLeft + (toolWidth + toolMargin) * (i % toolColumns);
+        //    tool.y = toolMargin - .5 + (toolHeight + toolMargin) * (Math.floor(i / toolColumns));
+        //    tool.height = toolHeight;
+        //    tool.width = toolWidth;
+        //}
 
-    //tools.push({
-    //    name: "Pencil/Fill",
-    //    color: "lightgray",
-    //    click: function () {
-    //        if (currentTool == "Pencil") {
-    //            currentTool = "Fill";
-    //        } else {
-    //            currentTool = "Pencil";
-    //        }
-    //        drawBoard();
-    //    },
-    //    symbol: "⚫",
-    //    draw: function () {
-    //        if (currentTool == "Fill") {
-    //            var offsets = [[1, 3], [4, -1], [9, 1], [9, 5], [7, 7], [3, 7], [5, 3]];
-    //            drawToolShadow(this);
-    //            for (var i = 0; i < offsets.length; i++) {
-    //                drawString("⚫", this.x + .5 + offsets[i][0], this.y + .5 + offsets[i][1], "black");
-    //            }
-    //        } else if (currentTool == "Pencil") {
-    //            drawToolShadow(this);
-    //            drawString(this.symbol, this.x + this.width / 2 - 2.5, this.y + 3.5, "black");
-    //        } else {
-    //            drawString(this.symbol, this.x + this.width / 2 - 2.5, this.y + 3.5, "gray");
-    //        }
-    //    }
-    //});
-    //tools.push({
-    //    name: "Fill",
-    //    color: "lightgray",
-    //    click: function () {
-    //        currentTool = this.name;
-    //        drawBoard();
-    //    },
-    //    draw: function () {
-    //        if (currentTool == this.name) {
-    //            drawToolShadow(this);
-    //        }
-    //        var offsets = [[1, 3], [4, -1], [9, 1], [9, 5], [7, 7], [3, 7], [5, 3]];
-    //        for (var i = 0; i < offsets.length; i++) {
-    //            drawString("⚫", this.x + .5 + offsets[i][0], this.y + .5 + offsets[i][1], "black");
-    //        }
-    //    }
-    //});
-    tools.push({
-        name: "Find a solution for shaded cells (Ctrl+click to check all possible solutions)",
-        color: "lightgray",
-        //shortcutKey: "w",
-        click: function (ctrlKey, shiftKey) {
-            //populate all possibilities on the grid as display data.
+        //create gradient for first tool, the solving tool.
+        if (!solveMode) {
 
-            //if (event.key == 'w') shiftKey = true;
+            var solvingGradient = ctx.createLinearGradient(solvingTool.x,
+                solvingTool.y,
+                solvingTool.x + solvingTool.width,
+                solvingTool.y + solvingTool.height);
 
-            registerBoardChange();
-            console.time("prep");
+            solvingGradient.addColorStop(.3, "#DEB887");
+            solvingGradient.addColorStop(0.35, "#8b4513");
+            solvingGradient.addColorStop(0.65, "#8b4513");
+            solvingGradient.addColorStop(.7, "#FFFFFF");
+            solvingTool.color = solvingGradient;
+        }
 
-            var starCount = 1;//prompt("# of stars per line/region");
-            if (starCount == "") return;
-            starCount = Number(starCount);
-            while (!Number.isInteger(starCount)) {
-                starCount = prompt("# of stars per line/region (Must be a number):");
-                if (starCount == "") return;
-                starCount = Number(starCount);
-            }
+        //var descriptionTool = {
+        //    name: "Description",
+        //    color: "#DDDDDD",
+        //    click: function () {
+        //        var d = "~";
+        //        var promptText = "Description";
+        //        while (d.indexOf("~") > -1) {
+        //            d = prompt(promptText, description);
+        //            if (d == null) { return; }
+        //            promptText = "Description (cannot contain '~'):";
+        //        }
+        //        registerBoardChange();
+        //        description = d;
+        //        drawBoard();
+        //    },
+        //    draw: function () {
+        //        drawString(description, this.x + 1.5, this.y + 1.5, "black", null, this.width);
+        //    },
+        //    x: tools[0].x,
+        //    y: tools[tools.length - 1].y + toolHeight + toolMargin,//toolMargin - .5,
+        //    height: tools[tools.length - 1].y + toolHeight + .5,
+        //    //width: canvasW - .5 - (toolWidth + toolMargin,
+        //    width: canvasW - .5 - tools[0].x - toolMargin
+        //}
+        //tools.push(descriptionTool);
 
-            //let starCount = 2;
-
-            let verifyCount = 0;
-            let setCount = 0;
-            let revertCount = 0;
-            let finalCheckCount = 0;
-            let solBoardCount = 0;
-            let maxSolutionBoards = 50;
-
-            let finalCheckGroups = [];
-
-            var solutionBoards = [];
-
-            let processingStartTime = Date.now();
-            let timeLimitExceeded = false;
-
-            function starBattleSolver(flatBoard, cellList, startingIdx) {
-                //for each cell, 
-                //if cell has no number
-                //check if it's valid to set cell to 2 (ON).  AKA check for other cells on the axes with value 2.
-                //if it's valid, set cell = 2.  else set to 1 and move on.
-                //at the end, check if it's valid.  Should be able to just go through columns to check, as by definition others will be correct.  If not, return false and recurse.
-                //recurse: if it's good (aka all columns have exactly 2 stars), return true;
-                //else, set value to 1, then go on to the next X.
-                for (let i = startingIdx || 0, len = cellList.length; i < len; i++) {
-                    var cell = cellList[i];
-                    if (cell.hexTypeID == 1) {
-                        verifyCount++;
-
-                        let isPossibleStar = true;
-                        //let groupAvailability = [];
-                        for (let group of cell.sudokuCellGroups) {
-                            //let availability = group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords);
-                            //  groupAvailability.push(availability);
-                            //if (availability < 1) {
-                            if (group.totalValue - getNumStarsInGroup(flatBoard, group.cellCoords) < 1) {
-
-                                isPossibleStar = false;
-                                break;
-                            }
-                        }
-                        if (isPossibleStar) {
-                            cell.hexTypeID = 3;
-
-                            setCount++;
-                            if (starBattleSolver(flatBoard, cellList, i + 1)) {
-                                return true;
-                            } else {
-                                cell.hexTypeID = 1;
-
-                                revertCount++;
-                                if (Date.now() - processingStartTime > 15000) {
-                                    if (timeLimitExceeded == false) {
-                                        alert("15 second time limit exceeded.  Try shading a few cells to get started.");
-                                        timeLimitExceeded = true;
-                                    }
-                                    return false;
-                                }
-                                //if (shiftKey) {
-                                //    solutionBoards.push(JSON.stringify(flatBoard));
-                                //    return true;
-                                //}
-                            }
-                            //} else {
-                            //    cell.number = 1;
-                        }
-                    }
-                }
-
-                //todo: better final check, showing that every line in each direction do have exactly starCount stars.
-                //do final check that every star sees exactly N - 1 other stars.Surely there's a better way to do this, but oh well.
-                finalCheckCount++;
-                for (let group of finalCheckGroups) {
-                    let hasCells = false;
-                    let colStarCount = 0;
-                    for (let cell of group) {
-                        //if there are any cells, there must be starCount stars.
-                        if (cell.hexTypeID > 0) {
-                            hasCells = true;
-                            if (cell.hexTypeID == 3) {
-                                colStarCount++;
-                            }
-                        }
-                    }
-                    if (hasCells && colStarCount != starCount) {
-                        return false;
-                    }
-                }
-
-                //for (let i = 0, len = cellList.length; i < len; i++) {
-                //    var cell = cellList[i];
-                //    if (cell.hexTypeID > 0 && cell.number == 2) {
-                //        for (let group of cell.sudokuCellGroups) {
-                //            if (getNumStarsInGroup(flatBoard, group.cellCoords) + 1 != group.totalValue) {
-                //                return false;
-                //            }
-                //        }
-                //    }
-                //}
-
-                solBoardCount++;
-                solutionBoards.push(JSON.stringify(flatBoard));
-                if (!ctrlKey) {
-                    return true;
-                } else {
-                    if (solutionBoards.length >= maxSolutionBoards) {
-                        //dedupe boards
-                        solutionBoards = dedupeArray(solutionBoards);
-
-                        //truly unique
-                        if (solutionBoards.length >= maxSolutionBoards) {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            setStarBattleCellGroups(starCount);
-
-            var flatBoard = getBoardCopy();
-            let cellList = [];
-            for (let i = 0; i < COLS; i++) {
-                let colGroup = [];
-                for (let j = 0; j < ROWS; j++) {
-                    let cell = flatBoard[i][j];
-                    if (cell.hexTypeID > 0) {
-                        cellList.push(cell);
-                        colGroup.push(cell);
-                    }
-                }
-                if (colGroup.length) {
-                    finalCheckGroups.push(colGroup);
-                }
-            }
-            //northwest to southeast, part 1.
-            for (let i = 0; i < COLS; i += 2) {
-                let colGroup = [];
-                let coords = [i, 0];
-                while (inBoard(coords[0], coords[1])) {
-                    let cell = flatBoard[coords[0]][coords[1]];
-                    if (cell.hexTypeID > 0) {
-                        colGroup.push(cell);
-                    }
-                    coords = getNeighborHexCoords(coords, 0);
-                }
-                if (colGroup.length) {
-                    finalCheckGroups.push(colGroup);
-                }
-            }
-            //northwest to southeast, part 2.
-            for (let i = 1; i < ROWS; i++) {
-                let colGroup = [];
-                let coords = [0, i];
-                while (inBoard(coords[0], coords[1])) {
-                    let cell = flatBoard[coords[0]][coords[1]];
-                    if (cell.hexTypeID > 0) {
-                        colGroup.push(cell);
-                    }
-                    coords = getNeighborHexCoords(coords, 0);
-                }
-                if (colGroup.length) {
-                    finalCheckGroups.push(colGroup);
-                }
-            }
-            //southwest to northeast, part 1.
-            for (let i = 1; i < COLS; i += 2) {
-                let colGroup = [];
-                let coords = [i, ROWS - 1];
-                while (inBoard(coords[0], coords[1])) {
-                    let cell = flatBoard[coords[0]][coords[1]];
-                    if (cell.hexTypeID > 0) {
-                        colGroup.push(cell);
-                    }
-                    coords = getNeighborHexCoords(coords, 1);
-                }
-                if (colGroup.length) {
-                    finalCheckGroups.push(colGroup);
-                }
-            }
-            //southwest to northeast, part 2.
-            for (let i = 1; i < ROWS; i++) {
-                let colGroup = [];
-                let coords = [0, i];
-                while (inBoard(coords[0], coords[1])) {
-                    let cell = flatBoard[coords[0]][coords[1]];
-                    if (cell.hexTypeID > 0) {
-                        colGroup.push(cell);
-                    }
-                    coords = getNeighborHexCoords(coords, 1);
-                }
-                if (colGroup.length) {
-                    finalCheckGroups.push(colGroup);
-                }
-            }
-
-            //todo maybe: check northeast/southwest and northwest/southeast lines.
-
-            //naively turn off cells that are already fulfilled.
-            for (let group of finalCheckGroups) {
-                let colStarCount = 0;
-                for (let cell of group) {
-                    //if there are any cells, there must be starCount stars.
-                    if (cell.hexTypeID > 0) {
-                        if (cell.hexTypeID == 3) {
-                            colStarCount++;
-                            for (let ncoords of getAllNeighborHexCoords([cell.x, cell.y])) {
-                                let c2 = getBoardCell(ncoords);
-                                if (c2 && c2.hexTypeID > 0) {
-                                    c2.hexTypeID = 2;
-                                }
-                            }
-                        }
-                    }
-                }
-                if (colStarCount == starCount) {
-                    for (let cell of group) {
-                        //if there are any cells, there must be starCount stars.
-                        if (cell.hexTypeID == 1) {
-                            registerBoardChange();
-                            let c = getBoardCell([cell.x, cell.y]);
-                            c.hexTypeID = 2;
-                        }
-                    }
-                }
-            }
-
-
-            //shuffleArray(cellList);
-
-            console.timeEnd("prep");
-            console.time("solve");
-            starBattleSolver(flatBoard, cellList);
-            if (timeLimitExceeded) {
-                return;
-            }
-            console.timeEnd("solve");
-            console.time("update");
-
-            //todo: reduce possible solutionboards - for some reason it's allowing duplicates.
-            //let jsonBoards = [];
-            //for (var sboard in solutionboards) {
-            //    jsonBoards = JSON.stringify(sboard);
-            //}
-            //solutionBoards = dedupeArray(jsonBoards);
-
-            let unpackedSolutionBoards = [];
-            for (var solBoard of solutionBoards) {
-                unpackedSolutionBoards.push(JSON.parse(solBoard));
-            }
-
-            if (solutionBoards.length && solutionBoards.length != maxSolutionBoards) {
-                for (let i = 0; i < COLS; i++) {
-                    for (let j = 0; j < ROWS; j++) {
-                        var cell = getBoardCell([i, j]);
-                        if (cell && cell.hexTypeID > 0 && cell.hexTypeID < 3) {
-                            var isAlwaysShaded = true;
-                            var isAlwaysUnshaded = true;
-                            for (let solBoard of unpackedSolutionBoards) {
-                                if (solBoard[i][j].hexTypeID == 3) {
-                                    isAlwaysUnshaded = false;
-                                } else {
-                                    isAlwaysShaded = false;
-
-                                }
-                            }
-                            if (isAlwaysShaded) {
-                                setBoardHexType([i, j], 3);
-                            } else if (isAlwaysUnshaded) {
-                                setBoardHexType([i, j], 2);
-                            }
-                        }
-                    }
-                }
-            }
-
-            console.timeEnd("update");
-
-            console.log("verifies:" + verifyCount);
-            console.log("sets:" + setCount);
-            console.log("reverts:" + revertCount);
-            console.log("final checks:" + finalCheckCount);
-            solBoardCount = solutionBoards.length;
-            console.log("solution board count:" + solBoardCount);
-
-            if (ctrlKey) {
-                console.log(solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution(s)");
-                alert("This shaded cell layout has " + solBoardCount + (solBoardCount == maxSolutionBoards ? "+" : "") + " solution" + (solBoardCount == 1 ? "" : "s"));
-            } else {
-                if (solBoardCount == 0) {
-                    alert("This shaded cell layout has 0 solutions");
-                }
-            }
-
-            drawBoard();
-        },
-        draw: "✓",
-    });
-
-    //tools.push({
-    //    name: "Thermo",
-    //    color: "lightgray",
-    //    click: function () {
-    //        currentTool = this.name;
-    //        drawBoard();
-    //    },
-    //    draw: function () {
-    //        if (currentTool == this.name) {
-    //            drawToolShadow(this);
-    //        }
-    //        drawString("T", this.x + 4.5, this.y + 3.5, "black");
-    //    }
-    //});
-
-    //tools.push({
-    //    name: "Flip Horizontally (Ctrl+click for Vertically).  This will reset the Undo/Redo.",
-    //    color: "lightgray",
-    //    //shortcutKey: "^up",
-    //    click: function (ctrlKey) {
-    //        let boardCopy = getBoardCopy(board);
-    //        for (let colIdx = 0; colIdx < COLS; colIdx++) {
-    //            for (let rowIdx = 0; rowIdx < ROWS; rowIdx++) {
-    //                if (ctrlKey) {
-    //                    if (colIdx % 2 == 0) {
-    //                        if (inBoard(colIdx, ROWS - rowIdx)) {
-    //                            board[colIdx][rowIdx] = boardCopy[colIdx][ROWS - rowIdx];
-    //                        }
-    //                    } else {
-    //                        if (inBoard(colIdx, ROWS - 1 - rowIdx)) {
-
-    //                            board[colIdx][rowIdx] = boardCopy[colIdx][ROWS - 1 - rowIdx];
-    //                        }
-    //                    }
-    //                } else {
-    //                    board[colIdx][rowIdx] = boardCopy[COLS - 1 - colIdx][rowIdx];
-    //                }
-    //            }
-    //        }
-    //        drawBoard();
-    //        importBoard();
-    //    },
-    //    draw: "><",
-    //});
-
-    //tools.push({
-    //    name: "Placeholder",
-    //    color: "lightgray",
-    //    //shortcutKey: "^up",
-    //    click: function () {
-    //    },
-    //    draw: "?",
-    //});
-
-
-    tools.push({
-        name: "Open as URL",
-        color: "lightgray",
-        //shortcutKey: "^up",
-        click: function () {
-            window.open("Sonari.html?boardDef=" + escape(getBoardDef()));
-        },
-        draw: "🖫",
-    });
-
-    //place shading tools just before undo/redo
-    tools.push(tools.shift());
-    tools.push(tools.shift());
-    tools.push(tools.shift());
-
-    tools.push({
-        name: "Undo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to undo 10 steps at a time)",
-        color: "lightgray",
-        //shortcutKey: "^up",
-        click: function (ctrlKey, shiftKey) {
-            undoBoardChange(shiftKey ? 10 : 1);
-            drawBoard();
-        },
-        draw: "<",
-    });
-    tools.push({
-        name: "Redo (or Ctrl+z)(Shift+click or Shift+Ctrl+z to redo 10 steps at a time)",
-        color: "lightgray",
-        //shortcutKey: "^up",
-        click: function (ctrlKey, shiftKey) {
-            redoBoardChange(shiftKey ? 10 : 1);
-            drawBoard();
-        },
-        draw: ">",
-    });
-
-    //tools.push({
-    //    name: "About",
-    //    color: "lightgray",
-    //    click: function () {
-    //        alert(
-    //            "Sonari setter/solver by BenceJoful\nVersion 0.0.1\nOriginal puzzle genre by Qinlux\n\nKeyboard shortcuts: Ctrl+z"
-    //        );
-    //    },
-    //    draw: "@",
-    //});
-    let solvingTool = {
-        name: "Solve: click to shade/unshade and modify ring sizes",
-        color: solvingGradient,
-        symbol: "",//"~",
-        shortcutKey: "+`",
-        click: function () {
-            currentHexType = -1;
-            drawBoard();
-        },
-        draw: function () {
-            if (currentHexType == -1) {
-                drawToolShadow(this);
-            }
-            drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
-
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = "crimson";
-            setPathCoords(this.x + this.width / 10, this.y + this.height / 10, 10 / linelen);
-            ctx.stroke();
-            ctx.strokeStyle = "dodgerblue";
-            setPathCoords(this.x + this.width / 2.3, this.y + this.height / 2.3, 6 / linelen);
-            ctx.stroke();
+        for (var i = 0; i < tools.length; i++) {
+            var tool = tools[i];
+            addMouseOverText(tool.name, "tool", tool.x, tool.y, tool.x + tool.width, tool.y + tool.height);
         }
     }
-    tools.push(solvingTool);
-    let toolRowBreaks = [6, 13, 18, 21, 23];
-    let toolRowBreak = toolRowBreaks.shift();
-    //layout tools in columnar grid.
-    let toolX = toolBoxLeft;
-    let toolY = toolMargin - .5;
-    for (var i = 0; i < tools.length; i++) {
-        var tool = tools[i];
-        tool.height = toolHeight;
-        tool.width = toolWidth;
-        tool.x = toolX;
-        tool.y = toolY;
-
-        toolX += toolMargin + toolWidth;
-        if (i == toolRowBreak) {
-            toolX = toolBoxLeft;
-            toolY += toolMargin + toolHeight;
-            toolRowBreak = toolRowBreaks.shift();
-        }
-    }
-
-    ////layout tools in columnar grid.
-    //for (var i = 0; i < tools.length; i++) {
-    //    var tool = tools[i];
-    //    tool.x = toolBoxLeft + (toolWidth + toolMargin) * (i % toolColumns);
-    //    tool.y = toolMargin - .5 + (toolHeight + toolMargin) * (Math.floor(i / toolColumns));
-    //    tool.height = toolHeight;
-    //    tool.width = toolWidth;
-    //}
-
-    //create gradient for first tool, the solving tool.
-    var solvingGradient = ctx.createLinearGradient(solvingTool.x,
-        solvingTool.y,
-        solvingTool.x + solvingTool.width,
-        solvingTool.y + solvingTool.height);
-
-    solvingGradient.addColorStop(.3, "#DEB887");
-    solvingGradient.addColorStop(0.35, "#8b4513");
-    solvingGradient.addColorStop(0.65, "#8b4513");
-    solvingGradient.addColorStop(.7, "#FFFFFF");
-    solvingTool.color = solvingGradient;
-
+    createTools();
     function promptDescription() {
         var d = "~";
         var promptText = "Description";
@@ -3117,44 +3191,18 @@ $(document).ready(function () {
         $("#hTitle").text(description);
         drawBoard();
     }
-
-    //var descriptionTool = {
-    //    name: "Description",
-    //    color: "#DDDDDD",
-    //    click: function () {
-    //        var d = "~";
-    //        var promptText = "Description";
-    //        while (d.indexOf("~") > -1) {
-    //            d = prompt(promptText, description);
-    //            if (d == null) { return; }
-    //            promptText = "Description (cannot contain '~'):";
-    //        }
-    //        registerBoardChange();
-    //        description = d;
-    //        drawBoard();
-    //    },
-    //    draw: function () {
-    //        drawString(description, this.x + 1.5, this.y + 1.5, "black", null, this.width);
-    //    },
-    //    x: tools[0].x,
-    //    y: tools[tools.length - 1].y + toolHeight + toolMargin,//toolMargin - .5,
-    //    height: tools[tools.length - 1].y + toolHeight + .5,
-    //    //width: canvasW - .5 - (toolWidth + toolMargin,
-    //    width: canvasW - .5 - tools[0].x - toolMargin
-    //}
-    //tools.push(descriptionTool);
-
-    for (var i = 0; i < tools.length; i++) {
-        var tool = tools[i];
-        addMouseOverText(tool.name, "tool", tool.x, tool.y, tool.x + tool.width, tool.y + tool.height);
-    }
-
     //check if there's a board Def in the URL
     const urlParams = new URLSearchParams(window.location.search);
     let boardDef = urlParams.get('boardDef')
     //if (!boardDef) {
-    //get it from local storage.
-    //boardDef = window.localStorage.getItem("boardDef");
+    ////get it from local storage.
+    ////boardDef = window.localStorage.getItem("boardDef");
+    //    //boardDef = boardDef.replace(/B/ig, 'A');
+    //    //2977 2-star! 
+    //    boardDef = "32~Untitled~[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]~...............................A;.............................AAAAC;...........................CAACAAAAA;.........................AAAAAAACACAAA;.......................AAAAAAAAAAAAAAACA;.....................CAAAAAAACAAAAAAAAAAAA;...................AAAAAAAAAAAAAAAAAAAAAAAAA;.................AAAAAAACAAACAAAAAAACAAAAAAAAA;...............AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;.............AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;...........AAAAAAAAAAAACAACAAAAAAAAAAAAAAAAAACAAAAAA;.........AAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAA;.......AAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAA;.....AAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAA;...AAAAAAAAAAAAAAAACAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAA;.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACAAAAAAACAAAAAAAAAAAAAAAAAA;CACAAAAAAAAAAAAAAAAACAACAAAAAAAAAAACAAAAAAAAAAAACAAAAAAAAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAACAAAAAAAAAACAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAACACAAAAAA;ACACAAAAAAAAAAACAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAACAAAAAAAAACA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAA;AAAACAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAACAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAACAAAAAAAAAAAA;ACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAACAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAACAAA;AACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAACAAAAAAACAA;AAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAA;CAACAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAA;AAAAAAAAAAAAACAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAA;AAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAACAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAC;AAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAACAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACAAACAAACAAACAAACAAACAAA;AAAAAAAAACAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC;AAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAACAAACAAACAAACAAACAAACAAACA;..AAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;....AAAAAAAACAAAAACAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;......AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAA;........AAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAA;..........CAAACAACACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;............AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;..............AACAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAA;................AAAAAAAAAACAAAAAAAAAAAAAAAAACAA;..................AAAAAAAAAAAAAAAAAAAAAAAAACA;....................AAAAAAAAAAAAACAAAAAAAAA;......................AACAACAAAAAAAAAAAAA;........................AAAAAAAAAAAAAAA;..........................AAAAAAAAAAA;............................ACAAAAA;..............................AAA"
+    //    //blanked out, so we can make a third pass for 3-star starbattle:
+    //    //boardDef = "32~Untitled~[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]~...............................A;.............................BBBBB;...........................BBBBBBBBB;.........................ABBBABBBBBBAB;.......................AAAAAABAABABAABBB;.....................BBAAAAABBBAAAAAAABAAA;...................ABBBBBBABBBBAAAABBBAAAAAA;.................AAAAAABBBABBBAAAAABBBAAAAAAAA;...............AAAAAAAAABAAABAAAAAAABAAAAAAAAAAA;.............AAAAAAAAAABABBBAAAAAAAAAAAAAAAAABAAAA;...........AAAAAAAAAAABBBBBBAAABAAAAAAAAAAAABBBAAAAA;.........AAAAAAAAAAAAABBBABAAABBBAAAABAAAAAABBBAAAAAAA;.......AAAAAAAAAAAAAAAAAABAAAABBBAAABBBAAAAAAAABAAAAAAAA;.....AAAAAAAAAAAAAABABBBBBBAAAAAAAAABBBAAAAAAABBBAABBBAAAA;...AAAAAAAAAAAAAAABBBBBBBBBAAAAAAAAAAAAAAAAAAABBBAABBBAAABBB;.AAAAAAAAAAAAAAAAABBBABAAAAAAAABBBABBBAAAAABBBAAAAAABAAAABBBAA;BBBBAAAAAAAAAAAAAAABBBABAAAAAAABBBABBBAAAAABBBABBBAAAAAAAABAAAA;BBBBAAAAAAAAAAAAAAABBBBBBAAAAAAABABBBAAAABAABAABBBAAAAAAAAAAAAA;BABAAAAAABBBAAAAAAAABBBBBAAAAAAAABBBBAAABBBAAAAABAAAABBBBBAAAAA;ABABAAAAABBBAAABABBBBBBAAAAAAAAAABBBAAAABBBAAAAAAAAAABBBBBABBBA;BBBBBAAAAABAAABBBBBBBBBAAAAAAAAAAABAAAAAAAAAAAAAAAAAAABABAABBBA;BBBBBAAAAAAAAABBBABAAAAAAAAAAAAAAAAAAAAAABBBAAAAAAABAAAAAAAABBA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBABBBAAAAAABBBAAAAAAABBB;AAABBBABAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAABAAAAAAABBBAABBBAABBB;AAABBBBBBAAAAAAAAAAAAAAAABAAAAAAAAAAAABBBBAAAAAAAAAAAAABBBAAAAA;AAAABABBBAAAAAAAAAAAAAAABBBAAAAAAAAAAAABBBAAAAAAAAAAAAAABAAAAAA;AAAAABAAAAAAAAAAAAAAAAAABBBAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAA;AAAABBBBBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAAAAAAAAAAABBBAAA;AAAABBBBBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAAABBBAAAAABBBAAA;ABAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAAAABBBAAAAAABAAAA;BBBAABBBABAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAAAABBBAAAAAAABAAA;BBBBABBBBBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBABBBAAAAAABBBAA;ABBBAABABBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBABBBAABBBBAAAABBBBA;AABAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAABBBBABBBAAAAABBBA;BBABAAABAABBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAABBBAABAAAAAAABAA;BBBBBABBBABBBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAABAAAAA;BABBBABBBAABBBAAAAAAAAAAAAABBBAAAAAAAAAAAAAAABBBAAAAAAAABBBAAAA;AAAAABAAAAAABBBAAAAAAAAAAAABBBAAAAAAAAAAAAAAABBBAAAAAAAABBBAAAA;AAAABBBAAAAABBBBAAAAAAAAAAAABAAAAAAAAAAAAAAAAABAAAAAAAABAAAAAAA;AAAABBBAAAAAABBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAA;AAABBBABBBAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAA;AAABBBABBBAAAAABBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAABB;AAAABAAABAABAAABBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAABB;AAAAABBBAABBBAABBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBAAAAAAAB;AAAAABBBAABBBABBBAAAAAAAAAAAAAAAAAABAAABAAABAAABAAABBBBBAAABAAA;AAAAAABAABAAABBBBAAAAAAAAAAAAAAAAABBBABBBABBBABBBABBBBBBBABBBBB;AAAAAAAABBBABBBAABAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBB;AAAAAAAABBBABBBABBBAAAAAAAAAAAABAAAABBBABBBABBBABBBABBBABBBABBB;..AAAAAAAAABBBAABBBBABBBAAAAAABBBAAABBBABBBABBBABBBABBBABBBAB;....AAAAAAABBBAAABBBABBBAAAAAABBBAAAAAAAAAAAAAAAABAAAAAAAAA;......AAAAAABAAAAABAAABAAAAAABBBAAAAAAAAAAAAAAAABBBAAAAAA;........ABBBABBBABABAAAAAAAAABBBAAAAAAAAAAAAAAAABBBAAAA;..........BBABBBBBBBBAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAA;............AABBBBBBBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;..............ABBBABBBAAABBBAAAAAAAAAAAAAAABBBAAA;................BAAABAAAABBBAAAAAAAAAAAAAAABBBA;..................AAAAAAAABAAAAAABAAAAAAAABBB;....................AAABBBABAAAABBBAAAAAAAB;......................ABBBBBBAAABBBAAAAAA;........................BABBBAAAAAAAAAA;..........................AAABAAAAAAA;............................BBBAAAA;..............................BAA"
+
     //}
     if (boardDef) {
         //$("#txtBoardDefinition").val(boardDef);
