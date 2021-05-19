@@ -328,7 +328,7 @@ $(document).ready(function () {
                 for (var segmentI = 0; segmentI < segmentCount; segmentI++) {
                     let c = colors[segmentI % colors.length];
                     if (c[0] == "_") {
-                        ctx.globalAlpha = .5;
+                        ctx.globalAlpha = 1;
                         c = c.substr(1, 900);
                     } else if (ctx.globalAlpha == 0.5) {
                         ctx.globalAlpha = 1;
@@ -1498,8 +1498,8 @@ $(document).ready(function () {
         "Shaded": "Shaded",
         "Red": "Red",
         "Yellow": "Yellow",
-        "Green": "Lime",
-        "DarkGreen": "Green",
+        "Green": "Green",
+        "Teal": "Teal",
         "Blue": "Blue",
         "Purple": "Purple",
         "Violet": "Violet",
@@ -1530,27 +1530,27 @@ $(document).ready(function () {
             symbol: "",//"#",
         }, {
             name: hexTypeNames.Red,
-            color: "crimson",
+            color: "#D91B4E",
             symbol: "A",//"➕",
             radius: 0,
         }, {
             name: hexTypeNames.Yellow,
-            color: "Gold",
+            color: "#f0c600",//"Goldenrod",
             symbol: "B",//"➕",
             radius: 0,
         }, {
             name: hexTypeNames.Green,
-            color: "lawngreen",
+            color: "LimeGreen",
             symbol: "C",//"☇",
             radius: 0,
         }, {
-            name: hexTypeNames.DarkGreen,
-            color: "Green",
+            name: hexTypeNames.Teal,
+            color: "Turquoise",
             symbol: "D",//"☆",
             radius: 0,
         }, {
             name: hexTypeNames.Blue,
-            color: "dodgerblue",
+            color: "#2180BE",//1A6699  
             symbol: "E",//"★",
             radius: 0,
         }, {
@@ -2559,7 +2559,7 @@ $(document).ready(function () {
             "Q Q Q Q" +
             "QQ   QQ" +
             " ");
-        pushToPixels(hexTypes[hexTypeMap[hexTypeNames.DarkGreen]].symbol, "Q" +
+        pushToPixels(hexTypes[hexTypeMap[hexTypeNames.Teal]].symbol, "Q" +
             "  QQQ  " +
             "QQQQQQQ" +
             "QQQQQQQ" +
