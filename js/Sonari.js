@@ -575,6 +575,67 @@ $(document).ready(function () {
         hexTypes = b.hexTypes;
     }
 
+    function toolClickAutoUnshade() {
+        //from each shaded cell, shade off all None cells on all axes.
+        for (var x = 0; x < COLS; ++x) {
+            for (var y = 0; y < ROWS; ++y) {
+                let cell = getBoardCell([x, y]);
+                if (cell && cell.hexTypeID == 3) {
+                    for (let dir = 0; dir < 6; dir++) {
+                        let neighborCellCoords = [cell.x, cell.y];
+                        let neighborCell = cell;
+                        while (neighborCell) {
+                            neighborCellCoords = getNeighborHexCoords(neighborCellCoords, dir);
+                            neighborCell = getBoardCell(neighborCellCoords);
+                            if (neighborCell) {
+                                if (neighborCell.hexTypeID == 1) {
+                                    setBoardHexType(neighborCellCoords, 2);
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!solveMode) {
+            //check if it's broken.  For each line, check if all shaded.  If so, alert.  If one is unshaded, shade and go again.
+            for (let cellGroup of getColCellGroups(board)) {
+                let allShaded = true;
+                let openCellCoords = [-1, -1];
+                for (let cell of cellGroup) {
+                    if (cell.hexTypeID == 1) {
+                        if (allShaded) {
+                            //found first open cell
+                            openCellCoords = [cell.x, cell.y];
+                        } else {
+                            //found second+ open cell
+                            openCellCoords = [-1, -1];
+                        }
+                        allShaded = false;
+                    }
+                    if (cell.hexTypeID == 3)//shaded
+                    {
+                        openCellCoords = [-1, -1];
+                        allShaded = false;
+                        break;
+                    }
+                }
+                if (allShaded) {
+                    console.log("Warning "+Date.now()+": no shaded cells in line containing [" + cellGroup[0].x + "," + cellGroup[0].y + "]");
+                    autoUnshade = false;
+                    return false;
+                } else if (openCellCoords[0] > -1) {
+                    //set as shaded, then go again.
+                    setBoardHexType(openCellCoords, 3);
+                }
+            }
+        }
+        return true;
+    }
+
     let lastRadiusChangedTime = 0;
     var prevMouseX = null;
     var prevMouseY = null;
@@ -711,6 +772,7 @@ $(document).ready(function () {
                                         setBoardHexType([x, y], hexTypeID);
                                     }
                                 } else {
+                                    autoUnshade = true;
                                     setBoardHexType([x, y], hexTypeID);
                                 }
                             }
@@ -975,7 +1037,92 @@ $(document).ready(function () {
         }
         return seenStars;
     }
-
+    let colCellGroupsCoords = [];
+    function getColCellGroups(flatBoard) {
+        if (colCellGroupsCoords.length == 0) {
+            for (let i = 0; i < COLS; i++) {
+                let colGroup = [];
+                for (let j = 0; j < ROWS; j++) {
+                    let cell = flatBoard[i][j];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push([cell.x, cell.y]);
+                    }
+                }
+                if (colGroup.length) {
+                    colCellGroupsCoords.push(colGroup);
+                }
+            }
+            //northwest to southeast, part 1.
+            for (let i = 0; i < COLS; i += 2) {
+                let colGroup = [];
+                let coords = [i, 0];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push([cell.x, cell.y]);
+                    }
+                    coords = getNeighborHexCoords(coords, 0);
+                }
+                if (colGroup.length) {
+                    colCellGroupsCoords.push(colGroup);
+                }
+            }
+            //northwest to southeast, part 2.
+            for (let i = 1; i < ROWS; i++) {
+                let colGroup = [];
+                let coords = [0, i];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push([cell.x, cell.y]);
+                    }
+                    coords = getNeighborHexCoords(coords, 0);
+                }
+                if (colGroup.length) {
+                    colCellGroupsCoords.push(colGroup);
+                }
+            }
+            //southwest to northeast, part 1.
+            for (let i = 1; i < COLS; i += 2) {
+                let colGroup = [];
+                let coords = [i, ROWS - 1];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push([cell.x, cell.y]);
+                    }
+                    coords = getNeighborHexCoords(coords, 1);
+                }
+                if (colGroup.length) {
+                    colCellGroupsCoords.push(colGroup);
+                }
+            }
+            //southwest to northeast, part 2.
+            for (let i = 1; i < ROWS; i++) {
+                let colGroup = [];
+                let coords = [0, i];
+                while (inBoard(coords[0], coords[1])) {
+                    let cell = flatBoard[coords[0]][coords[1]];
+                    if (cell.hexTypeID > 0) {
+                        colGroup.push([cell.x, cell.y]);
+                    }
+                    coords = getNeighborHexCoords(coords, 1);
+                }
+                if (colGroup.length) {
+                    colCellGroupsCoords.push(colGroup);
+                }
+            }
+        }
+        var colCellGroups = [];
+        for (let coordsList of colCellGroupsCoords) {
+            let colGroup = [];
+            for (let coords of coordsList) {
+                colGroup.push(flatBoard[coords[0]][coords[1]]);
+            }
+            colCellGroups.push(colGroup);
+        }
+        return colCellGroups;
+    }
     function getMouseHexCoords(mouseX, mouseY) {
         //todo: limit the seach space if time is a factor
         for (var x = 0; x < board.length; ++x) {
@@ -995,10 +1142,18 @@ $(document).ready(function () {
             return undefined;
         }
     };
+    let autoUnshade = false;
     function setBoardHexType(hexCoords, hexTypeID) {
         var cell = board[hexCoords[0]][hexCoords[1]];
         if (typeof cell != 'undefined') {
             cell.hexTypeID = hexTypeID;
+            if (autoUnshade && !solveMode && hexTypeID == 3) {
+                registerBoardChange();
+                if (!toolClickAutoUnshade()) {
+                    undoBoardChange();
+                    cell.hexTypeID = 1;
+                }
+            }
             cell.showRing = true;
         } else {
             board[hexCoords[0]][hexCoords[1]] = new Cell(hexCoords[0], hexCoords[1], hexTypeID, 0, null, true);
@@ -1322,12 +1477,12 @@ $(document).ready(function () {
         "Unshaded": "Unshaded",
         "Shaded": "Shaded",
         "Red": "Red",
-        "Orange": "Orange",
         "Yellow": "Yellow",
         "Green": "Lime",
         "DarkGreen": "Green",
         "Blue": "Blue",
         "Purple": "Purple",
+        "Violet": "Violet",
         "Zero": "0",
         "One": "1",
         "Two": "2",
@@ -1359,33 +1514,33 @@ $(document).ready(function () {
             symbol: "A",//"➕",
             radius: 0,
         }, {
-            name: hexTypeNames.Orange,
-            color: "orange",
-            symbol: "B",//"➕",
-            radius: 0,
-        }, {
             name: hexTypeNames.Yellow,
-            color: "gold",
-            symbol: "C",//"☇",
+            color: "Gold",
+            symbol: "B",//"➕",
             radius: 0,
         }, {
             name: hexTypeNames.Green,
             color: "lawngreen",
-            symbol: "D",//"☆",
+            symbol: "C",//"☇",
             radius: 0,
         }, {
             name: hexTypeNames.DarkGreen,
             color: "Green",
-            symbol: "E",//"★",
+            symbol: "D",//"☆",
             radius: 0,
         }, {
             name: hexTypeNames.Blue,
             color: "dodgerblue",
-            symbol: "F",//"⛨",
+            symbol: "E",//"★",
             radius: 0,
         }, {
             name: hexTypeNames.Purple,
-            color: "Purple",
+            color: "RebeccaPurple",
+            symbol: "F",//"⛨",
+            radius: 0,
+        }, {
+            name: hexTypeNames.Violet,
+            color: "Violet",
             symbol: "G",//"★",
             radius: 0,
         },
@@ -2465,34 +2620,13 @@ $(document).ready(function () {
             draw: ">",
         });
 
+
         tools.push({
             name: "Auto-unshade",
             color: "lightgray",
             click: function () {
                 registerBoardChange();
-                //from each shaded cell, shade off all None cells on all axes.
-                for (var x = 0; x < COLS; ++x) {
-                    for (var y = 0; y < ROWS; ++y) {
-                        let cell = getBoardCell([x, y]);
-                        if (cell && cell.hexTypeID == 3) {
-                            for (let dir = 0; dir < 6; dir++) {
-                                let neighborCellCoords = [cell.x, cell.y];
-                                let neighborCell = cell;
-                                while (neighborCell) {
-                                    neighborCellCoords = getNeighborHexCoords(neighborCellCoords, dir);
-                                    neighborCell = getBoardCell(neighborCellCoords);
-                                    if (neighborCell) {
-                                        if (neighborCell.hexTypeID == 1) {
-                                            setBoardHexType(neighborCellCoords, 2);
-                                        }
-                                    } else {
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                toolClickAutoUnshade();
 
                 drawBoard();
             },
@@ -2628,13 +2762,14 @@ $(document).ready(function () {
                 color: "lightgray",
                 shortcutKey: "delete",
                 click: function () {
-                    let sidelen = prompt("(Warning: this will delete everything off the board)\nNew board side length (3-11):", Math.ceil(COLS / 2));
-                    if (sidelen && Number.isInteger(Number(sidelen)) && Number(sidelen) >= 3 && Number(sidelen) <= 11) {
+                    let sidelen = prompt("(Warning: this will delete everything off the board)\nNew board side length (3-32):", Math.ceil(COLS / 2));
+                    if (sidelen && Number.isInteger(Number(sidelen)) && Number(sidelen) >= 3 && Number(sidelen) <= 33) {
                         COLS = Number(sidelen) * 2 - 1;
                         ROWS = COLS;
                         resetBoard();
                         recalcDrawingOffsets();
                         drawBoard();
+                        colCellGroupsCoords = [];
                     }
                 },
                 draw: "⌬",
@@ -2665,12 +2800,15 @@ $(document).ready(function () {
                     let solBoardCount = 0;
                     let maxSolutionBoards = 50;
 
-                    let finalCheckGroups = [];
+                    setStarBattleCellGroups(starCount);
+                    var flatBoard = getBoardCopy();
+                    let finalCheckGroups = getColCellGroups(flatBoard);
 
                     var solutionBoards = [];
 
                     let processingStartTime = Date.now();
                     let timeLimitExceeded = false;
+                    let timelimit = 15000;
 
                     function starBattleSolver(flatBoard, cellList, startingIdx) {
                         //for each cell, 
@@ -2707,12 +2845,20 @@ $(document).ready(function () {
                                         cell.hexTypeID = 1;
 
                                         revertCount++;
-                                        if (Date.now() - processingStartTime > 15000) {
+                                        if (Date.now() - processingStartTime > timelimit) {
                                             if (timeLimitExceeded == false) {
-                                                alert("15 second time limit exceeded.  Try shading a few cells to get started.");
-                                                timeLimitExceeded = true;
+                                                let addlSeconds = prompt((timelimit / 1000) + " second time limit exceeded.  How many more seconds do you want to give it?", "0");
+                                                if (!isNaN(Number(addlSeconds)) && Number(addlSeconds) > 0) {
+                                                    processingStartTime = Date.now();
+                                                    timelimit = Number(addlSeconds) * 1000;
+                                                } else {
+                                                    timeLimitExceeded = true;
+                                                    drawBoard();
+                                                }
                                             }
-                                            return false;
+                                            if (timeLimitExceeded) {
+                                                return false;
+                                            }
                                         }
                                         //if (shiftKey) {
                                         //    solutionBoards.push(JSON.stringify(flatBoard));
@@ -2773,87 +2919,20 @@ $(document).ready(function () {
                         }
                     }
 
-                    setStarBattleCellGroups(starCount);
 
-                    var flatBoard = getBoardCopy();
                     let cellList = [];
                     for (let i = 0; i < COLS; i++) {
-                        let colGroup = [];
                         for (let j = 0; j < ROWS; j++) {
                             let cell = flatBoard[i][j];
                             if (cell.hexTypeID > 0) {
                                 cellList.push(cell);
-                                colGroup.push(cell);
                             }
                         }
-                        if (colGroup.length) {
-                            finalCheckGroups.push(colGroup);
-                        }
                     }
-                    //northwest to southeast, part 1.
-                    for (let i = 0; i < COLS; i += 2) {
-                        let colGroup = [];
-                        let coords = [i, 0];
-                        while (inBoard(coords[0], coords[1])) {
-                            let cell = flatBoard[coords[0]][coords[1]];
-                            if (cell.hexTypeID > 0) {
-                                colGroup.push(cell);
-                            }
-                            coords = getNeighborHexCoords(coords, 0);
-                        }
-                        if (colGroup.length) {
-                            finalCheckGroups.push(colGroup);
-                        }
-                    }
-                    //northwest to southeast, part 2.
-                    for (let i = 1; i < ROWS; i++) {
-                        let colGroup = [];
-                        let coords = [0, i];
-                        while (inBoard(coords[0], coords[1])) {
-                            let cell = flatBoard[coords[0]][coords[1]];
-                            if (cell.hexTypeID > 0) {
-                                colGroup.push(cell);
-                            }
-                            coords = getNeighborHexCoords(coords, 0);
-                        }
-                        if (colGroup.length) {
-                            finalCheckGroups.push(colGroup);
-                        }
-                    }
-                    //southwest to northeast, part 1.
-                    for (let i = 1; i < COLS; i += 2) {
-                        let colGroup = [];
-                        let coords = [i, ROWS - 1];
-                        while (inBoard(coords[0], coords[1])) {
-                            let cell = flatBoard[coords[0]][coords[1]];
-                            if (cell.hexTypeID > 0) {
-                                colGroup.push(cell);
-                            }
-                            coords = getNeighborHexCoords(coords, 1);
-                        }
-                        if (colGroup.length) {
-                            finalCheckGroups.push(colGroup);
-                        }
-                    }
-                    //southwest to northeast, part 2.
-                    for (let i = 1; i < ROWS; i++) {
-                        let colGroup = [];
-                        let coords = [0, i];
-                        while (inBoard(coords[0], coords[1])) {
-                            let cell = flatBoard[coords[0]][coords[1]];
-                            if (cell.hexTypeID > 0) {
-                                colGroup.push(cell);
-                            }
-                            coords = getNeighborHexCoords(coords, 1);
-                        }
-                        if (colGroup.length) {
-                            finalCheckGroups.push(colGroup);
-                        }
-                    }
-
-                    //todo maybe: check northeast/southwest and northwest/southeast lines.
 
                     //naively turn off cells that are already fulfilled.
+                    let boardJSON = getBoardJSON();
+                    let changed = false;
                     for (let group of finalCheckGroups) {
                         let colStarCount = 0;
                         for (let cell of group) {
@@ -2865,6 +2944,7 @@ $(document).ready(function () {
                                         let c2 = getBoardCell(ncoords);
                                         if (c2 && c2.hexTypeID > 0) {
                                             c2.hexTypeID = 2;
+                                            changed = true;
                                         }
                                     }
                                 }
@@ -2874,12 +2954,15 @@ $(document).ready(function () {
                             for (let cell of group) {
                                 //if there are any cells, there must be starCount stars.
                                 if (cell.hexTypeID == 1) {
-                                    registerBoardChange();
                                     let c = getBoardCell([cell.x, cell.y]);
                                     c.hexTypeID = 2;
+                                    changed = true;
                                 }
                             }
                         }
+                    }
+                    if (changed) {
+                        registerBoardChange(boardJSON);
                     }
 
 
@@ -2999,8 +3082,8 @@ $(document).ready(function () {
         if (!solveMode) {
             tools.splice(6, 0, solvingTool);
         }
-        let toolRowBreaks = [6, 13, 20, 22, 24];
-        let toolRowBreak = toolRowBreaks.shift();
+        let toolRowCounts = [7, 7, 7];
+        let toolRowBreak = toolRowCounts.shift() - 1;
         //layout tools in columnar grid.
         let toolX = toolBoxLeft;
         let toolY = toolMargin - .5;
@@ -3015,7 +3098,7 @@ $(document).ready(function () {
             if (i == toolRowBreak) {
                 toolX = toolBoxLeft;
                 toolY += toolMargin + toolHeight;
-                toolRowBreak = toolRowBreaks.shift();
+                toolRowBreak += toolRowCounts.shift();
             }
         }
 
@@ -3092,8 +3175,14 @@ $(document).ready(function () {
     const urlParams = new URLSearchParams(window.location.search);
     let boardDef = urlParams.get('boardDef')
     //if (!boardDef) {
-    //get it from local storage.
-    //boardDef = window.localStorage.getItem("boardDef");
+    ////get it from local storage.
+    ////boardDef = window.localStorage.getItem("boardDef");
+    //    //boardDef = boardDef.replace(/B/ig, 'A');
+    //    //2977 2-star! 
+    //    boardDef = "32~Untitled~[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]~...............................A;.............................AAAAC;...........................CAACAAAAA;.........................AAAAAAACACAAA;.......................AAAAAAAAAAAAAAACA;.....................CAAAAAAACAAAAAAAAAAAA;...................AAAAAAAAAAAAAAAAAAAAAAAAA;.................AAAAAAACAAACAAAAAAACAAAAAAAAA;...............AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;.............AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;...........AAAAAAAAAAAACAACAAAAAAAAAAAAAAAAAACAAAAAA;.........AAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAA;.......AAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAA;.....AAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAA;...AAAAAAAAAAAAAAAACAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAA;.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACAAAAAAACAAAAAAAAAAAAAAAAAA;CACAAAAAAAAAAAAAAAAACAACAAAAAAAAAAACAAAAAAAAAAAACAAAAAAAAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAACAAAAAAAAAACAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAACACAAAAAA;ACACAAAAAAAAAAACAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAACAAAAAAAAACA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAA;AAAACAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAACAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAACAAAAAAAAAAAA;ACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAACAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAACAAA;AACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAACAAAAAAACAA;AAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAA;CAACAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAA;AAAAAAAAAAAAACAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAA;AAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAACAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAC;AAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;AAAAAACAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACAAACAAACAAACAAACAAACAAA;AAAAAAAAACAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC;AAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAACAAACAAACAAACAAACAAACAAACA;..AAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;....AAAAAAAACAAAAACAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;......AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAA;........AAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAA;..........CAAACAACACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;............AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;..............AACAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAA;................AAAAAAAAAACAAAAAAAAAAAAAAAAACAA;..................AAAAAAAAAAAAAAAAAAAAAAAAACA;....................AAAAAAAAAAAAACAAAAAAAAA;......................AACAACAAAAAAAAAAAAA;........................AAAAAAAAAAAAAAA;..........................AAAAAAAAAAA;............................ACAAAAA;..............................AAA"
+    //    //blanked out, so we can make a third pass for 3-star starbattle:
+    //    //boardDef = "32~Untitled~[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]~...............................A;.............................BBBBB;...........................BBBBBBBBB;.........................ABBBABBBBBBAB;.......................AAAAAABAABABAABBB;.....................BBAAAAABBBAAAAAAABAAA;...................ABBBBBBABBBBAAAABBBAAAAAA;.................AAAAAABBBABBBAAAAABBBAAAAAAAA;...............AAAAAAAAABAAABAAAAAAABAAAAAAAAAAA;.............AAAAAAAAAABABBBAAAAAAAAAAAAAAAAABAAAA;...........AAAAAAAAAAABBBBBBAAABAAAAAAAAAAAABBBAAAAA;.........AAAAAAAAAAAAABBBABAAABBBAAAABAAAAAABBBAAAAAAA;.......AAAAAAAAAAAAAAAAAABAAAABBBAAABBBAAAAAAAABAAAAAAAA;.....AAAAAAAAAAAAAABABBBBBBAAAAAAAAABBBAAAAAAABBBAABBBAAAA;...AAAAAAAAAAAAAAABBBBBBBBBAAAAAAAAAAAAAAAAAAABBBAABBBAAABBB;.AAAAAAAAAAAAAAAAABBBABAAAAAAAABBBABBBAAAAABBBAAAAAABAAAABBBAA;BBBBAAAAAAAAAAAAAAABBBABAAAAAAABBBABBBAAAAABBBABBBAAAAAAAABAAAA;BBBBAAAAAAAAAAAAAAABBBBBBAAAAAAABABBBAAAABAABAABBBAAAAAAAAAAAAA;BABAAAAAABBBAAAAAAAABBBBBAAAAAAAABBBBAAABBBAAAAABAAAABBBBBAAAAA;ABABAAAAABBBAAABABBBBBBAAAAAAAAAABBBAAAABBBAAAAAAAAAABBBBBABBBA;BBBBBAAAAABAAABBBBBBBBBAAAAAAAAAAABAAAAAAAAAAAAAAAAAAABABAABBBA;BBBBBAAAAAAAAABBBABAAAAAAAAAAAAAAAAAAAAAABBBAAAAAAABAAAAAAAABBA;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBABBBAAAAAABBBAAAAAAABBB;AAABBBABAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAABAAAAAAABBBAABBBAABBB;AAABBBBBBAAAAAAAAAAAAAAAABAAAAAAAAAAAABBBBAAAAAAAAAAAAABBBAAAAA;AAAABABBBAAAAAAAAAAAAAAABBBAAAAAAAAAAAABBBAAAAAAAAAAAAAABAAAAAA;AAAAABAAAAAAAAAAAAAAAAAABBBAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAA;AAAABBBBBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAAAAAAAAAAABBBAAA;AAAABBBBBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAAABBBAAAAABBBAAA;ABAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAAAABBBAAAAAABAAAA;BBBAABBBABAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAAAABBBAAAAAAABAAA;BBBBABBBBBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBABBBAAAAAABBBAA;ABBBAABABBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBABBBAABBBBAAAABBBBA;AABAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAABBBBABBBAAAAABBBA;BBABAAABAABBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAABBBAABAAAAAAABAA;BBBBBABBBABBBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAABAAAAA;BABBBABBBAABBBAAAAAAAAAAAAABBBAAAAAAAAAAAAAAABBBAAAAAAAABBBAAAA;AAAAABAAAAAABBBAAAAAAAAAAAABBBAAAAAAAAAAAAAAABBBAAAAAAAABBBAAAA;AAAABBBAAAAABBBBAAAAAAAAAAAABAAAAAAAAAAAAAAAAABAAAAAAAABAAAAAAA;AAAABBBAAAAAABBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAA;AAABBBABBBAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAAA;AAABBBABBBAAAAABBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAABB;AAAABAAABAABAAABBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBAAAAABB;AAAAABBBAABBBAABBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBAAAAAAAB;AAAAABBBAABBBABBBAAAAAAAAAAAAAAAAAABAAABAAABAAABAAABBBBBAAABAAA;AAAAAABAABAAABBBBAAAAAAAAAAAAAAAAABBBABBBABBBABBBABBBBBBBABBBBB;AAAAAAAABBBABBBAABAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBB;AAAAAAAABBBABBBABBBAAAAAAAAAAAABAAAABBBABBBABBBABBBABBBABBBABBB;..AAAAAAAAABBBAABBBBABBBAAAAAABBBAAABBBABBBABBBABBBABBBABBBAB;....AAAAAAABBBAAABBBABBBAAAAAABBBAAAAAAAAAAAAAAAABAAAAAAAAA;......AAAAAABAAAAABAAABAAAAAABBBAAAAAAAAAAAAAAAABBBAAAAAA;........ABBBABBBABABAAAAAAAAABBBAAAAAAAAAAAAAAAABBBAAAA;..........BBABBBBBBBBAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAA;............AABBBBBBBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAA;..............ABBBABBBAAABBBAAAAAAAAAAAAAAABBBAAA;................BAAABAAAABBBAAAAAAAAAAAAAAABBBA;..................AAAAAAAABAAAAAABAAAAAAAABBB;....................AAABBBABAAAABBBAAAAAAAB;......................ABBBBBBAAABBBAAAAAA;........................BABBBAAAAAAAAAA;..........................AAABAAAAAAA;............................BBBAAAA;..............................BAA"
+
     //}
     if (boardDef) {
         //$("#txtBoardDefinition").val(boardDef);
