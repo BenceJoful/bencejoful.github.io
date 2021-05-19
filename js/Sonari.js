@@ -227,7 +227,7 @@ $(document).ready(function () {
         for (let x = 0; x < COLS; ++x) {
             for (let y = 0; y < ROWS; ++y) {
                 let cell = getBoardCell([x, y]);
-                if (cell && cell.showRing) {
+                if (cell) {
                     let hexType = hexTypes[cell.hexTypeID];
                     if (hexType.radius) {
                         let ringCoordsList = getCellRingCoords(cell, hexType.radius);
@@ -247,10 +247,14 @@ $(document).ready(function () {
                                     ringLine.y1 = ringCoords[1];
                                 }
                                 ringLine = JSON.stringify(ringLine);
+                                let ringColor = hexType.color;
+                                if (!cell.showRing) {
+                                    ringColor = "_" + ringColor;
+                                }
                                 if (ringLines[ringLine]) {
-                                    ringLines[ringLine].push(hexType.color);
+                                    ringLines[ringLine].push(ringColor);
                                 } else {
-                                    ringLines[ringLine] = [hexType.color];
+                                    ringLines[ringLine] = [ringColor];
                                 }
                                 ringLine = {
                                     x1: ringCoords[0],
@@ -306,16 +310,30 @@ $(document).ready(function () {
             ctx.fill();
 
             if (colors.length == 1) {
+                if (colors[0][0] == "_") {
+                    ctx.globalAlpha = 0.5;
+                    colors[0] = colors[0].substr(1, 900);
+                } else if (ctx.globalAlpha == 0.5){
+                    ctx.globalAlpha = 1;
+                }
                 ctx.strokeStyle = colors[0];
                 ctx.beginPath();
                 ctx.moveTo(ringLine.x1, ringLine.y1);
                 ctx.lineTo(ringLine.x2, ringLine.y2);
                 ctx.stroke();
+
             } else {
                 //if there are multiple colors, split the line into 4 segments of length ctx.linewidth and draw accordingly.
                 let ratio = 0;
                 for (var segmentI = 0; segmentI < segmentCount; segmentI++) {
-                    ctx.strokeStyle = colors[segmentI % colors.length];
+                    let c = colors[segmentI % colors.length];
+                    if (c[0] == "_") {
+                        ctx.globalAlpha = .5;
+                        c = c.substr(1, 900);
+                    } else if (ctx.globalAlpha == 0.5) {
+                        ctx.globalAlpha = 1;
+                    }
+                    ctx.strokeStyle = c;
                     ctx.beginPath();
                     ctx.moveTo(ringLine.x1 * ratio + ringLine.x2 * (1 - ratio), Math.round(ringLine.y1 * ratio + ringLine.y2 * (1 - ratio)));
                     ratio += 1 / segmentCount;
@@ -324,6 +342,8 @@ $(document).ready(function () {
                 }
             }
         }
+        ctx.globalAlpha = 1;
+
         //Draw clues now, so they aren't obscured by rings 
         for (let cell of clueCells) {
             let hexType = hexTypes[cell.hexTypeID];
