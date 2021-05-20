@@ -1,11 +1,11 @@
 ﻿/*todo: 
  * hover over clue to highlight that clue's ring, and non-shaded cells on the ring.  
- * click on colors to toggle those rings on/off?
- * pencil marks?  Long-press or ctrl click.
+ * add setting to show finished clues, or tool to toggle them off individually.
+ * add clues (and allow rings) centered on a point, rather than a cell. 
+ * Allow erasing pencil marks in the usual way: shift click, right click,  and hitting with the same color.  Allow erasing targets (in edit mode) too.
  * 
  * Mobile friendly - bigger controls
  * Help section with rules and interface guide.
- * Warn when multiple rings have same radius?
 */
 
 'use strict';
@@ -59,23 +59,24 @@ $(document).ready(function () {
         setPathCoords(drawCoords[0], drawCoords[1]);
     };
 
-    function drawBlock(x, y, fillStyle, offsetX, offsetY, stroke) {
+    function drawBlock(x, y, fillStyle, offsetX, offsetY, strokeStyle) {
         // draw a single hex at (x, y)
         if (x < 0 || y < 0) return;
         if (offsetX === undefined) offsetX = 0;
         if (offsetY === undefined) offsetY = 0;
         var drawCoords = getDrawCoords(x, y);
-        drawBlockCoords(drawCoords[0] + offsetX, drawCoords[1] + offsetY, fillStyle, stroke);
+        drawBlockCoords(drawCoords[0] + offsetX, drawCoords[1] + offsetY, fillStyle, strokeStyle);
 
         return drawCoords;
     };
-    function drawBlockCoords(x, y, fillStyle, stroke) {
+    function drawBlockCoords(x, y, fillStyle, strokeStyle) {
         setPathCoords(x, y);
         if (fillStyle) {
             ctx.fillStyle = fillStyle;
             ctx.fill();
         }
-        if (stroke) {
+        if (strokeStyle) {
+            ctx.strokeStyle = strokeStyle;
             ctx.stroke();
         }
     }
@@ -209,9 +210,16 @@ $(document).ready(function () {
             var y = filledBlocks[i][1];
             var cell = board[x][y];
 
-            if (cell.hexTypeID > 3) {
+            if (cell.hexTypeID > 3 && cell.number) {
                 //draw these later so they aren't obscured by rings
                 clueCells.push(cell);
+            } else if (cell.hexTypeID > 3) {
+                //Draw pencil marks - clues without numbers, used during solving process.
+                let centerCoords = getHexCenter(cell.x, cell.y);
+                let grad = ctx.createRadialGradient(centerCoords[0], centerCoords[1], 0, centerCoords[0], centerCoords[1], HEX_H / 2);
+                grad.addColorStop(.5, hexTypes[cell.hexTypeID].color);
+                grad.addColorStop(.75, "white");
+                drawBlock(cell.x, cell.y, grad);
             } else {
                 drawBlock(x, y, hexTypes[cell.hexTypeID].color);
             }
@@ -227,7 +235,7 @@ $(document).ready(function () {
         for (let x = 0; x < COLS; ++x) {
             for (let y = 0; y < ROWS; ++y) {
                 let cell = getBoardCell([x, y]);
-                if (cell) {
+                if (cell && cell.hexTypeID > 3 && cell.number) {
                     let hexType = hexTypes[cell.hexTypeID];
                     if (hexType.radius) {
                         let ringCoordsList = getCellRingCoords(cell, hexType.radius);
@@ -313,7 +321,7 @@ $(document).ready(function () {
                 if (colors[0][0] == "_") {
                     ctx.globalAlpha = 0.5;
                     colors[0] = colors[0].substr(1, 900);
-                } else if (ctx.globalAlpha == 0.5){
+                } else if (ctx.globalAlpha == 0.5) {
                     ctx.globalAlpha = 1;
                 }
                 ctx.strokeStyle = colors[0];
@@ -343,25 +351,23 @@ $(document).ready(function () {
             }
         }
         ctx.globalAlpha = 1;
+        ctx.lineWidth = 3;
 
         //Draw clues now, so they aren't obscured by rings 
         for (let cell of clueCells) {
             let hexType = hexTypes[cell.hexTypeID];
-            let coords = drawBlock(cell.x, cell.y, hexType.color);
-            if (cell.number) {
-                //draw number
-                ctx.font = linelen + 'px sans-serif';
-                drawString(cell.number % 7, Math.round(coords[0] + HEX_W / 2), Math.round(coords[1] + HEX_H / 2 - 12 + linelen / 8), "black");
+            let coords = drawBlock(cell.x, cell.y, hexType.color, null, null, "black");
+            //draw number
+            ctx.font = linelen + 'px sans-serif';
+            drawString(cell.number % 7, Math.round(coords[0] + HEX_W / 2), Math.round(coords[1] + HEX_H / 2 - 12 + linelen / 8), "black");
 
-                //draw colorblind-friendly letter.
-                ctx.font = linelen / 2 + 'px sans-serif';
-                drawString(hexType.symbol, Math.round(coords[0] + HEX_W / 2 - linelen / 2), Math.round(coords[1] + HEX_H / 2 - 12), "black");
-            }
+            //draw colorblind-friendly letter.
+            ctx.font = linelen / 2 + 'px sans-serif';
+            drawString(hexType.symbol, Math.round(coords[0] + HEX_W / 2 - linelen / 2), Math.round(coords[1] + HEX_H / 2 - 12), "black");
         }
         ctx.font = '20px sans-serif';
 
         ctx.lineWidth = 1;
-        ctx.strokeStyle = 'black';
 
         drawToolbox();
 
@@ -644,7 +650,7 @@ $(document).ready(function () {
                     }
                 }
                 if (allShaded) {
-                    console.log("Warning "+Date.now()+": no shaded cells in line containing [" + cellGroup[0].x + "," + cellGroup[0].y + "]");
+                    console.log("Warning " + Date.now() + ": no shaded cells in line containing [" + cellGroup[0].x + "," + cellGroup[0].y + "]");
                     autoUnshade = false;
                     return false;
                 } else if (openCellCoords[0] > -1) {
@@ -665,14 +671,14 @@ $(document).ready(function () {
             var hexTypeID = currentHexType;
             if (shiftKey) {
                 hexTypeID = 0;
-            } else if (currentHexType == -1) {
-                //solve tool: get current hex to determine proper action.
+            } else if (solveMode || currentHexType == -1) {
+                //solve tool or a colored pencil marker: get current hex to determine proper action.
 
                 var hexCoords = getMouseHexCoords(mouseX, mouseY);
                 if (inBoard(hexCoords[0], hexCoords[1])) {
-                    let targetHexTypeID = board[hexCoords[0]][hexCoords[1]].hexTypeID;
-
-                    if (targetHexTypeID > 3) {
+                    let targetcell = board[hexCoords[0]][hexCoords[1]];
+                    let targetHexTypeID = targetcell.hexTypeID;
+                    if (targetHexTypeID > 3 && targetcell.number) {
                         let currentTime = Date.now();
                         if (currentTime > lastRadiusChangedTime + 100) {
                             lastRadiusChangedTime = currentTime;
@@ -682,7 +688,7 @@ $(document).ready(function () {
                             for (let y = 0; y < ROWS; ++y) {
                                 for (let x = 0; x < COLS; ++x) {
                                     let cell = getBoardCell([x, y]);
-                                    if (cell && cell.hexTypeID == targetHexTypeID) {
+                                    if (cell && cell.hexTypeID == targetHexTypeID && cell.number) {
                                         //travel in all directions until finding a space without a cell.
                                         for (let dir = 0; dir < 6; dir++) {
                                             let neighborCoords = [x, y];
@@ -718,9 +724,9 @@ $(document).ready(function () {
                             }
                         }
                         hexTypeID = 0;
-                    } else {
+                    } else if (currentHexType == -1) {
                         if (mouseMovingColor == 0) {
-                            if (targetHexTypeID == 1) {
+                            if (targetHexTypeID == 1 || targetHexTypeID > 3) {
                                 if (event.buttons == 2) {
                                     //None, set to Unshaded
                                     hexTypeID = 2;
@@ -744,6 +750,8 @@ $(document).ready(function () {
                                     //Shaded, set to Unshaded
                                     hexTypeID = 2;
                                 }
+                            } else {
+                                hexTypeID = 1;
                             }
                         } else {
                             hexTypeID = mouseMovingColor;
@@ -782,17 +790,23 @@ $(document).ready(function () {
                             }
                             else {
                                 //for clues
-                                if (cell.hexTypeID > 3) {
-                                    //toggle colors on/off if it's the same clue color.
-                                    if (cell.hexTypeID == hexTypeID) {
-                                        hexTypeID = 1;
-                                    }
-                                    //double-check its not the solve tool.  Workaround for issue I should debug.
-                                    if (currentHexType != -1) {
-                                        setBoardHexType([x, y], hexTypeID);
+                                if (cell.hexTypeID > 3 && cell.number) {
+                                    if (!solveMode) {
+                                        //toggle colors on/off if it's the same clue color.
+                                        if (cell.hexTypeID == hexTypeID) {
+                                            hexTypeID = 1;
+                                        }
+                                        //double-check its not the solve tool.  Workaround for issue I should debug.
+                                        if (currentHexType != -1) {
+                                            setBoardHexType([x, y], hexTypeID);
+                                        }
                                     }
                                 } else {
                                     autoUnshade = true;
+                                    cell.number = 0;
+                                    if (hexTypeID > 3 && hexTypeID == cell.hexTypeID) {
+                                        hexTypeID = 1;
+                                    }
                                     setBoardHexType([x, y], hexTypeID);
                                 }
                             }
@@ -839,7 +853,7 @@ $(document).ready(function () {
                             }
                         }
                     }
-                    if (cell.hexTypeID > 3) {
+                    if (cell.hexTypeID > 3 && cell.number) {
                         //found a clue.  Determine whether it has exactly cell.number shaded cells on perimeter.
 
                         let hexType = hexTypes[cell.hexTypeID];
@@ -2618,7 +2632,6 @@ $(document).ready(function () {
     function createTools() {
         tools = [];
 
-
         tools.push({
             name: "Undo (or Ctrl+z)(+Shift to undo 10 steps at a time)",
             color: "lightgray",
@@ -2703,7 +2716,7 @@ $(document).ready(function () {
                 for (var x = 0; x < COLS; ++x) {
                     for (var y = 0; y < ROWS; ++y) {
                         let cell = getBoardCell([x, y]);
-                        if (cell && cell.hexTypeID > 0 && cell.hexTypeID <= 3) {
+                        if (cell && cell.hexTypeID > 0 && (cell.hexTypeID <= 3 || !cell.number)) {
                             setBoardHexType([cell.x, cell.y], 1);
                         }
                     }
@@ -2732,29 +2745,27 @@ $(document).ready(function () {
             draw: "✎",
         });
 
-        if (!solveMode) {
-            for (var i = 4; i < hexTypes.length; i++) {
-                var shortcutKey = "key_" + hexTypes[i].name;
-                if (shortcutKey)
+        for (var i = 4; i < (solveMode ? 11 : hexTypes.length); i++) {
+            var shortcutKey = "key_" + hexTypes[i].name;
+            if (shortcutKey)
 
-                    tools.push({
-                        name: "",//"Draw: " + hexTypes[i].name,// + " (" + i.toString() + ")",
-                        hexType: i,
-                        color: hexTypes[i].color,
-                        symbol: hexTypes[i].symbol,
-                        shortcutKey: hexTypes[i].shortcutKey,//"key_" + hexTypes[i].name,
-                        click: function () {
-                            currentHexType = this.hexType;
-                            drawBoard();
-                        },
-                        draw: function () {
-                            if (currentHexType == this.hexType) {
-                                drawToolShadow(this);
-                            }
-                            drawString(this.symbol, this.x + this.width / 2 - 6.5, this.y + 3.5, "black");
+                tools.push({
+                    name: "",//"Draw: " + hexTypes[i].name,// + " (" + i.toString() + ")",
+                    hexType: i,
+                    color: hexTypes[i].color,
+                    symbol: hexTypes[i].symbol,
+                    shortcutKey: hexTypes[i].shortcutKey,//"key_" + hexTypes[i].name,
+                    click: function () {
+                        currentHexType = this.hexType;
+                        drawBoard();
+                    },
+                    draw: function () {
+                        if (currentHexType == this.hexType) {
+                            drawToolShadow(this);
                         }
-                    });
-            }
+                        drawString(this.symbol, this.x + this.width / 2 - 6.5, this.y + 3.5, "black");
+                    }
+                });
         }
 
         //for (var i = 1; i <= 9; i++) {
@@ -3099,9 +3110,8 @@ $(document).ready(function () {
 
             }
         }
-        if (!solveMode) {
-            tools.splice(6, 0, solvingTool);
-        }
+        tools.splice(6, 0, solvingTool);
+
         let toolRowCounts = [7, 7, 7];
         let toolRowBreak = toolRowCounts.shift() - 1;
         //layout tools in columnar grid.
@@ -3132,19 +3142,17 @@ $(document).ready(function () {
         //}
 
         //create gradient for first tool, the solving tool.
-        if (!solveMode) {
 
-            var solvingGradient = ctx.createLinearGradient(solvingTool.x,
-                solvingTool.y,
-                solvingTool.x + solvingTool.width,
-                solvingTool.y + solvingTool.height);
+        var solvingGradient = ctx.createLinearGradient(solvingTool.x,
+            solvingTool.y,
+            solvingTool.x + solvingTool.width,
+            solvingTool.y + solvingTool.height);
 
-            solvingGradient.addColorStop(.3, "#DEB887");
-            solvingGradient.addColorStop(0.35, "#8b4513");
-            solvingGradient.addColorStop(0.65, "#8b4513");
-            solvingGradient.addColorStop(.7, "#FFFFFF");
-            solvingTool.color = solvingGradient;
-        }
+        solvingGradient.addColorStop(.3, "#DEB887");
+        solvingGradient.addColorStop(0.35, "#8b4513");
+        solvingGradient.addColorStop(0.65, "#8b4513");
+        solvingGradient.addColorStop(.7, "#FFFFFF");
+        solvingTool.color = solvingGradient;
 
         //var descriptionTool = {
         //    name: "Description",
