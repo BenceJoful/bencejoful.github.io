@@ -1,8 +1,8 @@
 ﻿/*todo: 
  * hover over clue to highlight that clue's ring, and non-shaded cells on the ring.  
- * add setting to show finished clues, or tool to toggle them off individually.
+ * user setting to show finished clues, or tool to toggle them off individually.
  * add clues (and allow rings) centered on a point, rather than a cell. 
- * Allow erasing pencil marks in the usual way: shift click, right click,  and hitting with the same color.  Allow erasing targets (in edit mode) too.
+ * if pencil marks of same color are adjacent, connect them.
  * 
  * Mobile friendly - bigger controls
  * Help section with rules and interface guide.
@@ -220,6 +220,20 @@ $(document).ready(function () {
                 grad.addColorStop(.5, hexTypes[cell.hexTypeID].color);
                 grad.addColorStop(.75, "white");
                 drawBlock(cell.x, cell.y, grad);
+                //todo: connect with adjacent pencil marks of same color.
+                for (let neighborCoords of getAllNeighborHexCoords([x, y])) {
+                    let ncell = getBoardCell(neighborCoords);
+                    if (ncell && ncell.hexTypeID == cell.hexTypeID && !ncell.number) {
+                        //draw line connecting them.
+                        ctx.strokeStyle = hexTypes[cell.hexTypeID].color;
+                        ctx.lineWidth = 6;
+                        ctx.beginPath();
+                        ctx.moveTo(centerCoords[0], centerCoords[1]);
+                        let ncenterCoords = getHexCenter(ncell.x, ncell.y);
+                        ctx.lineTo(ncenterCoords[0], ncenterCoords[1]);
+                        ctx.stroke();
+                    }
+                }
             } else {
                 drawBlock(x, y, hexTypes[cell.hexTypeID].color);
             }
