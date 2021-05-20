@@ -216,17 +216,22 @@ $(document).ready(function () {
             } else if (cell.hexTypeID > 3) {
                 //Draw pencil marks - clues without numbers, used during solving process.
                 let centerCoords = getHexCenter(cell.x, cell.y);
-                let grad = ctx.createRadialGradient(centerCoords[0], centerCoords[1], 0, centerCoords[0], centerCoords[1], HEX_H / 2);
-                grad.addColorStop(.5, hexTypes[cell.hexTypeID].color);
-                grad.addColorStop(.75, "white");
-                drawBlock(cell.x, cell.y, grad);
+                //let grad = ctx.createRadialGradient(centerCoords[0], centerCoords[1], 0, centerCoords[0], centerCoords[1], 12);
+                //grad.addColorStop(.5, hexTypes[cell.hexTypeID].color);
+                //grad.addColorStop(.75, "white");
+                drawBlock(cell.x, cell.y, "white");
+                ctx.beginPath();
+                ctx.fillStyle = hexTypes[cell.hexTypeID].color;
+                ctx.arc(centerCoords[0], centerCoords[1], 10, 0, 2 * Math.PI);
+                ctx.fill();
+
                 //todo: connect with adjacent pencil marks of same color.
                 for (let neighborCoords of getAllNeighborHexCoords([x, y])) {
                     let ncell = getBoardCell(neighborCoords);
                     if (ncell && ncell.hexTypeID == cell.hexTypeID && !ncell.number) {
                         //draw line connecting them.
                         ctx.strokeStyle = hexTypes[cell.hexTypeID].color;
-                        ctx.lineWidth = 6;
+                        ctx.lineWidth = 20;
                         ctx.beginPath();
                         ctx.moveTo(centerCoords[0], centerCoords[1]);
                         let ncenterCoords = getHexCenter(ncell.x, ncell.y);
