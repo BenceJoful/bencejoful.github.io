@@ -542,7 +542,7 @@ $(document).ready(function () {
             }
             var mouseOverText = getMouseOverTextAtCoords(mouseX, mouseY);
             if (mouseOverText && mouseOverText[0]) {
-                let mtX = 258;
+                let mtX = 290;
                 let mtY = 5;
                 ctx.clearRect(mtX - 5, mtY - 5, canvasW - mtX, 30 * mouseOverText.length);
                 for (let textLine of mouseOverText) {
@@ -2763,6 +2763,22 @@ $(document).ready(function () {
             },
             draw: "✎",
         });
+        tools.push({
+            name: "First time? Watch an example video",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function () {
+                window.open("https://youtu.be/sjcfpVAKalI");
+                
+                return true;
+            },
+            draw: function () {
+                ctx.font = '12px sans-serif';
+                drawString("Help", this.x + this.width / 2 - 12.5, this.y + 3.5, "black");
+                ctx.font = '20px sans-serif';
+
+            }
+        });
 
         for (var i = 4; i < (solveMode ? 11 : hexTypes.length); i++) {
             var shortcutKey = "key_" + hexTypes[i].name;
@@ -3131,7 +3147,7 @@ $(document).ready(function () {
         }
         tools.splice(6, 0, solvingTool);
 
-        let toolRowCounts = [7, 7, 7];
+        let toolRowCounts = [8, 7, 7];
         let toolRowBreak = toolRowCounts.shift() - 1;
         //layout tools in columnar grid.
         let toolX = toolBoxLeft;
@@ -3243,4 +3259,3 @@ $(document).ready(function () {
     //$('#btnImport').click(importBoard);
     $('#hTitle').click(promptDescription);
 });
-
