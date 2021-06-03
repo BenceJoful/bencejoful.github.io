@@ -1,11 +1,14 @@
 ﻿/*todo: 
  * hover over clue to highlight that clue's ring, and non-shaded cells on the ring.  
  * user setting to show finished clues, or tool to toggle them off individually.
- * add clues (and allow rings) centered on a point, rather than a cell. 
- * if pencil marks of same color are adjacent, connect them.
- * 
+ * Triangular clues:
+    * pay attention when detecting puzzle solved.
+    * hide/fade triangular ring when appropriate
+    * fix how to set clues in edit mode, at least how unnumbered clues are displayed and exported.
+ * Setting arbitrary text on clues: breaks 'congrats' message.
  * Mobile friendly - bigger controls
- * Help section with rules and interface guide.
+ * Help section with rules and interface guide, or video?
+ * Gallery of puzzles to include.
 */
 
 'use strict';
@@ -14,21 +17,50 @@ $(document).ready(function () {
     class Cell {
         hexTypeID = 0;
         number = 0;
+        label = "";
         sudokuCellGroups = [];
         x = 0;
         y = 0;
         showRing = true;
-        constructor(x, y, hexTypeID, number, sudokuCellGroups, showRing) {
+        rightTriClueColorID = 1;
+        rightTriClueNumber = 0;
+        rightTriClueLabel = "";
+        leftTriClueColorID = 1;
+        leftTriClueNumber = 0;
+        leftTriClueLabel = "";
+        rightTriClue2ColorID = 1;
+        rightTriClue2Number = 0;
+        rightTriClue2Label = "";
+        leftTriClue2ColorID = 1;
+        leftTriClue2Number = 0;
+        leftTriClue2Label = "";
+        constructor(x, y, hexTypeID, number, sudokuCellGroups, showRing, rightTriClueColorID, rightTriClueNumber, rightTriClueLabel, leftTriClueColorID, leftTriClueNumber, leftTriClueLabel, rightTriClue2ColorID, rightTriClue2Number, rightTriClue2Label, leftTriClue2ColorID, leftTriClue2Number, leftTriClue2Label) {
             this.x = x;
             this.y = y;
             this.hexTypeID = hexTypeID;
             this.number = number;
             this.sudokuCellGroups = sudokuCellGroups;
             this.showRing = showRing;
+            this.rightTriClueColorID = rightTriClueColorID;
+            this.rightTriClueNumber = rightTriClueNumber;
+            this.rightTriClueLabel = rightTriClueLabel;
+            this.leftTriClueColorID = leftTriClueColorID;
+            this.leftTriClueNumber = leftTriClueNumber;
+            this.leftTriClueLabel = leftTriClueLabel;
+            this.rightTriClue2ColorID = rightTriClue2ColorID;
+            this.rightTriClue2Number = rightTriClue2Number;
+            this.rightTriClue2Label = rightTriClue2Label;
+            this.leftTriClue2ColorID = leftTriClue2ColorID;
+            this.leftTriClue2Number = leftTriClue2Number;
+            this.leftTriClue2Label = leftTriClue2Label;
         }
     }
     function getCellClone(cell) {
-        return new Cell(cell.x, cell.y, cell.hexTypeID, cell.number, cell.sudokuCellGroups, cell.showRing);
+        return new Cell(cell.x, cell.y, cell.hexTypeID, cell.number, cell.sudokuCellGroups, cell.showRing,
+            cell.rightTriClueColorID, cell.rightTriClueNumber, cell.rightTriClueLabel,
+            cell.leftTriClueColorID, cell.leftTriClueNumber, cell.leftTriClueLabel,
+            cell.rightTriClue2ColorID, cell.rightTriClue2Number, cell.rightTriClue2Label,
+            cell.leftTriClue2ColorID, cell.leftTriClue2Number, cell.leftTriClue2Label);
     }
 
     function getDrawCoords(x, y, overX) {
@@ -43,7 +75,7 @@ $(document).ready(function () {
 
     function getHexCenter(x, y) {
         var drawCoords = getDrawCoords(x, y);
-        return [drawCoords[0] + HEX_W * .65 + .5, drawCoords[1] + HEX_H / 2];
+        return [drawCoords[0] + linelen + .5, drawCoords[1] + HEX_H / 2];
     };
 
     function setPathCoords(x, y, percent) {
@@ -113,7 +145,8 @@ $(document).ready(function () {
         $("#hTitle").text(description);
         undoboards = [];
         redoboards = [];
-
+        recalcDrawingOffsets();
+        createTools();
     }
 
     function importBoard() {
@@ -129,7 +162,7 @@ $(document).ready(function () {
         for (var i = 0; i < ringRadiusList.length; i++) {
             hexTypes[i].radius = ringRadiusList[i];
         }
-        var lines = boardDef[0].replace(/\./g, "@").split(";");
+        var lines = boardDef.shift().replace(/\./g, "@").split(";");
         //for each line, get the first 4 characters, convert to integer, put it in board.
         for (var i = 0; i < lines.length; i++) {
             var line = lines[i].split("");
@@ -147,7 +180,42 @@ $(document).ready(function () {
                 }
             }
         }
-        recalcDrawingOffsets();
+        if (boardDef.length > 0) {
+            //get and process triangular clues
+            let rightTriangularClues = JSON.parse(boardDef.shift());
+            for (let rightTriClue of rightTriangularClues) {
+                let cell = board[rightTriClue[0]][rightTriClue[1]];
+                cell.rightTriClueColorID = rightTriClue[2];
+                cell.rightTriClueNumber = rightTriClue[3];
+                cell.rightTriClueLabel = rightTriClue[4];
+            }
+            let leftTriangularClues = JSON.parse(boardDef.shift());
+            for (let leftTriClue of leftTriangularClues) {
+                let cell = board[leftTriClue[0]][leftTriClue[1]];
+                cell.leftTriClueColorID = leftTriClue[2];
+                cell.leftTriClueNumber = leftTriClue[3];
+                cell.leftTriClueLabel = leftTriClue[4];
+            }
+            let rightTriangularClues2 = JSON.parse(boardDef.shift());
+            for (let rightTriClue2 of rightTriangularClues2) {
+                let cell = board[rightTriClue2[0]][rightTriClue2[1]];
+                cell.rightTriClue2ColorID = rightTriClue2[2];
+                cell.rightTriClue2Number = rightTriClue2[3];
+                cell.rightTriClue2Label = rightTriClue2[4];
+            }
+            let leftTriangularClues2 = JSON.parse(boardDef.shift());
+            for (let leftTriClue2 of leftTriangularClues2) {
+                let cell = board[leftTriClue2[0]][leftTriClue2[1]];
+                cell.leftTriClue2ColorID = leftTriClue2[2];
+                cell.leftTriClue2Number = leftTriClue2[3];
+                cell.leftTriClue2Label = leftTriClue2[4];
+            }
+            let cellLabels = JSON.parse(boardDef.shift());
+            for (let cellLabel of cellLabels) {
+                let cell = board[cellLabel[0]][cellLabel[1]];
+                cell.label = cellLabel[2];
+            }
+        }
         drawBoard();
     }
     function drawBoard() {
@@ -254,16 +322,56 @@ $(document).ready(function () {
         for (let x = 0; x < COLS; ++x) {
             for (let y = 0; y < ROWS; ++y) {
                 let cell = getBoardCell([x, y]);
-                if (cell && cell.hexTypeID > 3 && cell.number) {
-                    let hexType = hexTypes[cell.hexTypeID];
-                    if (hexType.radius) {
-                        let ringCoordsList = getCellRingCoords(cell, hexType.radius);
-                        if (ringCoordsList) {
+                if (cell) {
+                    let coordsLists = [];
+                    if (cell.hexTypeID > 3 && cell.number) {
+                        let hexType = hexTypes[cell.hexTypeID];
+                        if (hexType.radius) {
+                            //three types of clues here, same ringline logic.
+                            coordsLists.push([hexType.color, getCellRingCoords(cell, hexType.radius)]);
+                        }
+                    }
+                    if (cell.leftTriClueColorID > 3 && cell.leftTriClueNumber) {
+                        //get triangle around this point.  side lengths are 2, 3, 5, 6, 8, 9, 11, 12, 14, 15.  side length = Radius + 1.
+                        //when inserting into ringlines, make sure all coordinates are left to right, top to bottom.
+                        let hexType = hexTypes[cell.leftTriClueColorID];
+                        if (hexType.radius) {
+                            coordsLists.push([hexType.color, getCellTriCoords(cell, hexType.radius, true)]);
+                        }
+                    }
+                    if (cell.rightTriClueColorID > 3 && cell.rightTriClueNumber) {
+                        //get triangle around this point.  side lengths are 2, 3, 5, 6, 8, 9, 11, 12, 14, 15.  side length = Radius + 1.
+                        //when inserting into ringlines, make sure all coordinates are left to right, top to bottom.
+                        let hexType = hexTypes[cell.rightTriClueColorID];
+                        if (hexType.radius) {
+                            coordsLists.push([hexType.color, getCellTriCoords(cell, hexType.radius, false)]);
+                        }
+                    }
+                    if (cell.leftTriClue2ColorID > 3 && cell.leftTriClue2Number) {
+                        //get triangle around this point.  side lengths are 2, 3, 5, 6, 8, 9, 11, 12, 14, 15.  side length = Radius + 1.
+                        //when inserting into ringlines, make sure all coordinates are left to right, top to bottom.
+                        let hexType = hexTypes[cell.leftTriClue2ColorID];
+                        if (hexType.radius) {
+                            coordsLists.push([hexType.color, getCellTriCoords(cell, hexType.radius, true, true)]);
+                        }
+                    }
+                    if (cell.rightTriClue2ColorID > 3 && cell.rightTriClue2Number) {
+                        //get triangle around this point.  side lengths are 2, 3, 5, 6, 8, 9, 11, 12, 14, 15.  side length = Radius + 1.
+                        //when inserting into ringlines, make sure all coordinates are left to right, top to bottom.
+                        let hexType = hexTypes[cell.rightTriClue2ColorID];
+                        if (hexType.radius) {
+                            coordsLists.push([hexType.color, getCellTriCoords(cell, hexType.radius, false, true)]);
+                        }
+                    }
+                    for (let coordsList of coordsLists) {
+                        let hexColor = coordsList[0];
+                        coordsList = coordsList[1];
+                        if (coordsList) {
                             let ringLine = {
-                                x1: ringCoordsList[ringCoordsList.length - 1][0],
-                                y1: ringCoordsList[ringCoordsList.length - 1][1],
+                                x1: coordsList[coordsList.length - 1][0],
+                                y1: coordsList[coordsList.length - 1][1],
                             };
-                            for (var ringCoords of ringCoordsList) {
+                            for (var ringCoords of coordsList) {
                                 if (ringLine.x1 < ringCoords[0] || (ringLine.x1 == ringCoords[0] && ringLine.y1 < ringCoords[1])) {
                                     ringLine.x2 = ringCoords[0];
                                     ringLine.y2 = ringCoords[1];
@@ -274,7 +382,7 @@ $(document).ready(function () {
                                     ringLine.y1 = ringCoords[1];
                                 }
                                 ringLine = JSON.stringify(ringLine);
-                                let ringColor = hexType.color;
+                                let ringColor = hexColor;
                                 if (!cell.showRing) {
                                     ringColor = "_" + ringColor;
                                 }
@@ -289,35 +397,6 @@ $(document).ready(function () {
                                 };
                             }
                         }
-
-                        ////start at southwest corner.
-                        //let ringCoords = [cell.x, cell.y];
-                        //for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
-                        //    ringCoords = getNeighborHexCoords(ringCoords, 4);
-                        //}
-                        ////travel around the ring radius steps in each direction.
-                        //for (let dir = 0; dir < 6; dir++) {
-                        //    for (let radiusI = 0; radiusI < hexType.radius; radiusI++) {
-                        //        let ringLine = { x1: ringCoords[0], y1: ringCoords[1] };
-                        //        ringCoords = getNeighborHexCoords(ringCoords, dir);
-                        //        if (ringLine.x1 < ringCoords[0] || (ringLine.x1 == ringCoords[0] && ringLine.y1 < ringCoords[1])) {
-                        //            ringLine.x2 = ringCoords[0];
-                        //            ringLine.y2 = ringCoords[1];
-                        //        } else {
-                        //            ringLine.x2 = ringLine.x1;
-                        //            ringLine.y2 = ringLine.y1;
-                        //            ringLine.x1 = ringCoords[0];
-                        //            ringLine.y1 = ringCoords[1];
-                        //        }
-                        //        ringLine = JSON.stringify(ringLine);
-                        //        if (ringLines[ringLine]) {
-                        //            ringLines[ringLine].push(hexType.color);
-                        //        } else {
-                        //            ringLines[ringLine] = [hexType.color];
-                        //        }
-                        //    }
-                        //    //ctx.lineTo(centerX * .05 + drawX * .95, centerY * .05 + drawY * .95);
-                        //}
                     }
                 }
             }
@@ -377,12 +456,18 @@ $(document).ready(function () {
             let hexType = hexTypes[cell.hexTypeID];
             let coords = drawBlock(cell.x, cell.y, hexType.color, null, null, "black");
             //draw number
-            ctx.font = linelen + 'px sans-serif';
-            drawString(cell.number % 7, Math.round(coords[0] + HEX_W / 2), Math.round(coords[1] + HEX_H / 2 - 12 + linelen / 8), "black");
+            let s = (cell.number % 7).toString();
+            if (cell.label != "") {
+                s = cell.label;
+            }
+            ctx.font = (linelen * (2 - s.length + 3) / 4) + 'px sans-serif';
+            drawString(s, Math.round(coords[0] + HEX_W / 2) - (s.length - 1) * linelen / 6, Math.round(coords[1] + HEX_H / 2 + linelen / 3), "black");
 
-            //draw colorblind-friendly letter.
-            ctx.font = linelen / 2 + 'px sans-serif';
-            drawString(hexType.symbol, Math.round(coords[0] + HEX_W / 2 - linelen / 2), Math.round(coords[1] + HEX_H / 2 - 12), "black");
+            if (showClueLetters) {
+                //draw colorblind-friendly letter.
+                ctx.font = linelen / 2 + 'px sans-serif';
+                drawString(hexType.symbol, Math.round(coords[0] + HEX_W / 2 - linelen / 2), Math.round(coords[1] + HEX_H / 2 + linelen / 6), "black");
+            }
         }
         ctx.font = '20px sans-serif';
 
@@ -394,23 +479,30 @@ $(document).ready(function () {
 
     function getBoardDef() {
         //display board text further down in the webpage.
-        var lines = [];
-        var boardWidth = 0;
-        var boardHeight = 0;
+        let lines = [];
+        let boardWidth = 0;
+        let boardHeight = 0;
+        let rightTriangularClues = [];
+        let leftTriangularClues = [];
+        let rightTriangularClues2 = [];
+        let leftTriangularClues2 = [];
+        let cellLabels = [];
         for (let y = 0; y < board[0].length; ++y) {
             var line = "";
             var lineBuffer = "";
             for (let x = 0; x < board.length; ++x) {
-                var hexTypeID = board[x][y].hexTypeID;
-                var boardValue = String.fromCharCode(64 + hexTypeID);
-                if (hexTypeID > 0) {
-                    var number = board[x][y].number;
-                    if (number > 0) {
-                        lineBuffer += number.toString();
+                let cell = board[x][y];
+                var boardValue = String.fromCharCode(64 + cell.hexTypeID);
+                if (cell.hexTypeID > 0) {
+                    if (cell.number > 0) {
+                        lineBuffer += cell.number.toString();
+                        if (cell.label != "") {
+                            cellLabels.push([x, y, cell.label]);
+                        }
                     }
                 }
                 lineBuffer += boardValue;
-                if (hexTypeID > 0) {
+                if (cell.hexTypeID > 0) {
                     if (x > boardWidth) {
                         boardWidth = x;
                     }
@@ -419,6 +511,18 @@ $(document).ready(function () {
                     }
                     line += lineBuffer;
                     lineBuffer = "";
+                }
+                if (cell.rightTriClueColorID > 1 && cell.rightTriClueNumber > 0) {
+                    rightTriangularClues.push([cell.x, cell.y, cell.rightTriClueColorID, cell.rightTriClueNumber, cell.rightTriClueLabel]);
+                }
+                if (cell.leftTriClueColorID > 1 && cell.leftTriClueNumber > 0) {
+                    leftTriangularClues.push([cell.x, cell.y, cell.leftTriClueColorID, cell.leftTriClueNumber, cell.leftTriClueLabel]);
+                }
+                if (cell.rightTriClue2ColorID > 1 && cell.rightTriClue2Number > 0) {
+                    rightTriangularClues2.push([cell.x, cell.y, cell.rightTriClue2ColorID, cell.rightTriClue2Number, cell.rightTriClue2Label]);
+                }
+                if (cell.leftTriClue2ColorID > 1 && cell.leftTriClue2Number > 0) {
+                    leftTriangularClues2.push([cell.x, cell.y, cell.leftTriClue2ColorID, cell.leftTriClue2Number, cell.leftTriClue2Label]);
                 }
             }
             lines.push(line || "@");
@@ -429,7 +533,7 @@ $(document).ready(function () {
         for (var i = 0; i < hexTypes.length; i++) {
             ringRadiusList[i] = hexTypes[i].radius || 0;
         };
-        var boardDef = Math.ceil(COLS / 2) + "~" + description + "~" + JSON.stringify(ringRadiusList) + "~" + lines.join(";").replace(/@/g, ".");
+        var boardDef = Math.ceil(COLS / 2) + "~" + description + "~" + JSON.stringify(ringRadiusList) + "~" + lines.join(";").replace(/@/g, ".") + "~" + JSON.stringify(rightTriangularClues) + "~" + JSON.stringify(leftTriangularClues) + "~" + JSON.stringify(rightTriangularClues2) + "~" + JSON.stringify(leftTriangularClues2) + "~" + JSON.stringify(cellLabels);
         return boardDef;
 
         //$("#txtBoardDefinition").val(boardDef);
@@ -446,7 +550,7 @@ $(document).ready(function () {
                 ctx.strokeRect(tool.x, tool.y, tool.width, tool.height);
             }
             if (typeof tool.draw === "string") {
-                drawString(tool.draw, tool.x + tool.width / 2 - 6.5, tool.y + 3, "black");
+                drawString(tool.draw, tool.x + tool.width / 2 - 6.5, tool.y + 21, "black");
             } else if (tool.draw) {
                 tool.draw();
             }
@@ -463,13 +567,15 @@ $(document).ready(function () {
         ctx.lineWidth = 1;
     }
 
-    function getToolAtCoords(mouseX, mouseY) {
+    function getToolsAtCoords(mouseX, mouseY) {
+        let rTools = [];
         for (var i = 0; i < tools.length; i++) {
             var tool = tools[i];
             if (tool.x <= mouseX && mouseX <= tool.x + tool.width && tool.y <= mouseY && mouseY <= tool.y + tool.height) {
-                return tool;
+                rTools.push(tool);
             }
         }
+        return rTools;
     }
     function addMouseOverText(text, type, left, top, right, bottom) {
         if (!Array.isArray(text)) {
@@ -542,9 +648,14 @@ $(document).ready(function () {
             }
             var mouseOverText = getMouseOverTextAtCoords(mouseX, mouseY);
             if (mouseOverText && mouseOverText[0]) {
-                let mtX = 290;
-                let mtY = 5;
-                ctx.clearRect(mtX - 5, mtY - 5, canvasW - mtX, 30 * mouseOverText.length);
+                while (mouseOverText[mouseOverText.length - 1] == "") {
+                    //clear empties off end.
+                    mouseOverText.pop();
+                }
+                ctx.font = '20px sans-serif';
+                let mtX = 288;
+                let mtY = 23;
+                ctx.clearRect(mtX - 5, mtY - 23, canvasW - mtX, 30 * mouseOverText.length);
                 for (let textLine of mouseOverText) {
                     drawString(textLine, mtX, mtY, "black", "white");
                     mtY += 20;
@@ -556,10 +667,13 @@ $(document).ready(function () {
         } else if (eventType == "down") {
             var handled = false;
             //check tools first
-            var tool = getToolAtCoords(mouseX, mouseY);
-            if (tool) {
-                handled = true;
-                tool.click(e.ctrlKey, e.shiftKey);
+            let rTools = getToolsAtCoords(mouseX, mouseY);
+            while (rTools.length) {
+                let tool = rTools.shift();
+                handled = tool.click(e.ctrlKey, e.shiftKey);
+                if (handled) {
+                    break;
+                }
             }
             if (!handled) {
                 //check board
@@ -618,6 +732,8 @@ $(document).ready(function () {
         description = b.desc;
         $("#hTitle").text(description);
         hexTypes = b.hexTypes;
+        //rewire any tools that have cells attached to the new ones.
+        createTools();
     }
 
     function toolClickAutoUnshade() {
@@ -633,7 +749,7 @@ $(document).ready(function () {
                             neighborCellCoords = getNeighborHexCoords(neighborCellCoords, dir);
                             neighborCell = getBoardCell(neighborCellCoords);
                             if (neighborCell) {
-                                if (neighborCell.hexTypeID == 1) {
+                                if (neighborCell.hexTypeID == 1 || (neighborCell.hexTypeID > 3 && !neighborCell.number)) {
                                     setBoardHexType(neighborCellCoords, 2);
                                 }
                             } else {
@@ -651,7 +767,7 @@ $(document).ready(function () {
                 let allShaded = true;
                 let openCellCoords = [-1, -1];
                 for (let cell of cellGroup) {
-                    if (cell.hexTypeID == 1) {
+                    if (cell.hexTypeID == 1 || (cell.hexTypeID > 3 && !cell.number)) {
                         if (allShaded) {
                             //found first open cell
                             openCellCoords = [cell.x, cell.y];
@@ -681,6 +797,89 @@ $(document).ready(function () {
         return true;
     }
 
+    function getMaxRadius(hexTypeID) {
+        var maxRadius = Math.floor(COLS / 2);
+        for (let y = 0; y < ROWS; ++y) {
+            for (let x = 0; x < COLS; ++x) {
+                let cell = getBoardCell([x, y]);
+                if (cell) {
+                    if (cell.hexTypeID == hexTypeID && cell.number) {
+                        //travel in all directions until finding a space without a cell.
+                        for (let dir = 0; dir < 6; dir++) {
+                            let neighborCoords = [x, y];
+                            for (let radius = 1; radius <= maxRadius; radius++) {
+                                neighborCoords = getNeighborHexCoords(neighborCoords, dir);
+                                let neighborcell = getBoardCell(neighborCoords);
+                                if (!neighborcell || neighborcell.hexTypeID == 0) {
+                                    maxRadius = radius - 1;
+                                    break;
+                                }
+                            }
+                            if (maxRadius == 1) {
+                                break;
+                            }
+                        }
+                    }
+                    //check triangular clues
+                    if (cell.leftTriClueColorID == hexTypeID && cell.leftTriClueNumber) {
+                        //grow until it doesn't work anymore.
+                        for (let radius = 1; radius <= maxRadius; radius++) {
+                            let triCoordsList = getCellTriCoords(cell, radius, true);
+                            for (let triCoords of triCoordsList) {
+                                let triCell = getBoardCell(triCoords);
+                                if (!triCell || triCell.hexTypeID == 0) {
+                                    maxRadius = radius - 1;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (cell.rightTriClueColorID == hexTypeID && cell.rightTriClueNumber) {
+                        //grow until it doesn't work anymore.
+                        for (let radius = 1; radius <= maxRadius; radius++) {
+                            let triCoordsList = getCellTriCoords(cell, radius, false);
+                            for (let triCoords of triCoordsList) {
+                                let triCell = getBoardCell(triCoords);
+                                if (!triCell || triCell.hexTypeID == 0) {
+                                    maxRadius = radius - 1;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    //check triangular clues
+                    if (cell.leftTriClue2ColorID == hexTypeID && cell.leftTriClue2Number) {
+                        //grow until it doesn't work anymore.
+                        for (let radius = 1; radius <= maxRadius; radius++) {
+                            let triCoordsList = getCellTriCoords(cell, radius, true, true);
+                            for (let triCoords of triCoordsList) {
+                                let triCell = getBoardCell(triCoords);
+                                if (!triCell || triCell.hexTypeID == 0) {
+                                    maxRadius = radius - 1;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (cell.rightTriClue2ColorID == hexTypeID && cell.rightTriClue2Number) {
+                        //grow until it doesn't work anymore.
+                        for (let radius = 1; radius <= maxRadius; radius++) {
+                            let triCoordsList = getCellTriCoords(cell, radius, false, true);
+                            for (let triCoords of triCoordsList) {
+                                let triCell = getBoardCell(triCoords);
+                                if (!triCell || triCell.hexTypeID == 0) {
+                                    maxRadius = radius - 1;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return maxRadius;
+    }
+
     let lastRadiusChangedTime = 0;
     var prevMouseX = null;
     var prevMouseY = null;
@@ -698,34 +897,19 @@ $(document).ready(function () {
                     let targetcell = board[hexCoords[0]][hexCoords[1]];
                     let targetHexTypeID = targetcell.hexTypeID;
                     if (targetHexTypeID > 3 && targetcell.number) {
+                        if (settingLabel) {
+                            targetcell.label = settingLabelLabel;
+                            settingLabel = false;
+                            drawBoard();
+                            return true;
+                        }
                         let currentTime = Date.now();
                         if (currentTime > lastRadiusChangedTime + 100) {
                             lastRadiusChangedTime = currentTime;
                             //found a clue, increase the ring size.
                             //get max radius by finding closest wall from any hex with this color.
-                            var maxRadius = Math.floor(COLS / 2);
-                            for (let y = 0; y < ROWS; ++y) {
-                                for (let x = 0; x < COLS; ++x) {
-                                    let cell = getBoardCell([x, y]);
-                                    if (cell && cell.hexTypeID == targetHexTypeID && cell.number) {
-                                        //travel in all directions until finding a space without a cell.
-                                        for (let dir = 0; dir < 6; dir++) {
-                                            let neighborCoords = [x, y];
-                                            for (let radius = 1; radius <= maxRadius; radius++) {
-                                                neighborCoords = getNeighborHexCoords(neighborCoords, dir);
-                                                let neighborcell = getBoardCell(neighborCoords);
-                                                if (!neighborcell || neighborcell.hexTypeID == 0) {
-                                                    maxRadius = radius - 1;
-                                                    break;
-                                                }
-                                            }
-                                            if (maxRadius == 1) {
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            let maxRadius = getMaxRadius(targetHexTypeID);
+
                             registerBoardChange();
                             changed = true;
                             if (event.buttons == 2) {
@@ -803,30 +987,36 @@ $(document).ready(function () {
                         let cell = getBoardCell([x, y]);
                         if (cell && cell.hexTypeID > 0) {
 
-                            var hexType = hexTypes[hexTypeID];
-                            if (hexType.color == "Plum") {//the numbers.
-                                setBoardNumber([x, y], (hexType.symbol == "0" ? 7 : Number(hexType.symbol)))
-                            }
-                            else {
-                                //for clues
-                                if (cell.hexTypeID > 3 && cell.number) {
-                                    if (!solveMode) {
-                                        //toggle colors on/off if it's the same clue color.
-                                        if (cell.hexTypeID == hexTypeID) {
+                            if (settingLabel && cell.hexTypeID > 3 && cell.number) {
+                                cell.label = settingLabelLabel;
+                                settingLabel = false;
+                                drawBoard();
+                            } else {
+                                var hexType = hexTypes[hexTypeID];
+                                if (hexType.color == "Plum") {//the numbers.
+                                    setBoardNumber([x, y], (hexType.symbol == "0" ? 7 : Number(hexType.symbol)))
+                                }
+                                else {
+                                    //for clues
+                                    if (cell.hexTypeID > 3 && cell.number) {
+                                        if (!solveMode) {
+                                            //toggle colors on/off if it's the same clue color.
+                                            if (cell.hexTypeID == hexTypeID) {
+                                                hexTypeID = 1;
+                                            }
+                                            //double-check its not the solve tool.  Workaround for issue I should debug.
+                                            if (currentHexType != -1) {
+                                                setBoardHexType([x, y], hexTypeID);
+                                            }
+                                        }
+                                    } else {
+                                        autoUnshade = true;
+                                        cell.number = 0;
+                                        if (hexTypeID > 3 && hexTypeID == cell.hexTypeID) {
                                             hexTypeID = 1;
                                         }
-                                        //double-check its not the solve tool.  Workaround for issue I should debug.
-                                        if (currentHexType != -1) {
-                                            setBoardHexType([x, y], hexTypeID);
-                                        }
+                                        setBoardHexType([x, y], hexTypeID);
                                     }
-                                } else {
-                                    autoUnshade = true;
-                                    cell.number = 0;
-                                    if (hexTypeID > 3 && hexTypeID == cell.hexTypeID) {
-                                        hexTypeID = 1;
-                                    }
-                                    setBoardHexType([x, y], hexTypeID);
                                 }
                             }
                             changed = true;
@@ -889,13 +1079,11 @@ $(document).ready(function () {
                                         allCellsShaded = false;
                                     }
                                 }
-
-
                             }
                             if (cell.number % 7 != clueShadedCellCnt) {
                                 answerValid = false;
                                 cell.showRing = true;
-                            } else if (allCellsShaded) {
+                            } else if (allCellsShaded && cell.label == "") {
                                 //hide this ring.
                                 cell.showRing = false;
                             }
@@ -942,6 +1130,29 @@ $(document).ready(function () {
             for (let radiusI = 0; radiusI < radius; radiusI++) {
                 ringCoords = getNeighborHexCoords(ringCoords, dir);
                 coordsList.push(ringCoords);
+            }
+        }
+        return coordsList;
+    }
+
+    //const triClueSideLengths = [0, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18, 20, 21, 23, 24, 26, 27, 29, 30];
+    function getCellTriCoords(cell, radius, isLeft, is2) {
+        let coordsList = [];
+        let sideLength = radius * 3 - (is2 ? 1 : 0);//triClueSideLengths[radius];
+        let triCoords = [];
+        let dirs = [];
+        //if ((sideLength % 3 == 0 && isLeft) || (sideLength % 3 == 2 && !isLeft)) {
+        if ((isLeft && !is2) || (!isLeft && is2)) {
+            triCoords = [cell.x - (Math.floor(sideLength / 3) * 2), cell.y];
+            dirs = [1, 5, 3];
+        } else {
+            triCoords = [cell.x + (Math.floor(sideLength / 3) * 2), cell.y];
+            dirs = [3, 5, 1];
+        }
+        for (let dirI = 0; dirI < dirs.length; dirI++) {
+            for (let i = 0; i < sideLength - 1; i++) {
+                triCoords = getNeighborHexCoords(triCoords, dirs[dirI]);
+                coordsList.push(triCoords);
             }
         }
         return coordsList;
@@ -1209,15 +1420,16 @@ $(document).ready(function () {
             }
             cell.showRing = true;
         } else {
-            board[hexCoords[0]][hexCoords[1]] = new Cell(hexCoords[0], hexCoords[1], hexTypeID, 0, null, true);
+            board[hexCoords[0]][hexCoords[1]] = new Cell(hexCoords[0], hexCoords[1], hexTypeID, 0, null, true, 1, 0, "", 1, 0, "", 1, 0, "", 1, 0, "");
         }
     };
     function setBoardNumber(hexCoords, number) {
         var cell = board[hexCoords[0]][hexCoords[1]];
-        if (cell.number == number) {
+        if (cell.number == number && cell.label == "") {
             cell.number = 0;
         } else {
             cell.number = number;
+            cell.label = "";
         }
     };
 
@@ -1235,7 +1447,7 @@ $(document).ready(function () {
 
     function drawString(s, inX, inY, color, backgroundColor, maxWidth) {
         ctx.fillStyle = color;
-        ctx.fillText(s, inX, inY + 18, maxWidth);
+        ctx.fillText(s, inX, inY, maxWidth);
         return;
         //var pixels = [];
         //var x = inX;
@@ -1416,8 +1628,7 @@ $(document).ready(function () {
             keyname = (e.ctrlKey ? "^" : "") + (e.shiftKey ? "+" : "") + keyname;
             $.each(tools, function (idx, tool) {
                 if (keyname == tool.shortcutKey) {
-                    tool.click(e.ctrlKey, e.shiftKey);
-                    handled = true;
+                    handled = tool.click(e.ctrlKey, e.shiftKey);
                 }
             });
             if (!handled) {
@@ -1492,18 +1703,24 @@ $(document).ready(function () {
         canvasDrawingYOff = canvasH / 2 - HEX_H * COLS / 2 - ((Math.ceil(COLS / 2)) % 2 ? 0 : HEX_H / 2);
     }
 
-    var COLS = 13;//19;//
-    var ROWS = 13;//13;//19;// //N rows, plus creating a V at the bottom.  with COLS = 11, this means 5 extra rows.
+    var COLS = 11;//19;//
+    var ROWS = 11;//13;//19;// //N rows, plus creating a V at the bottom.  with COLS = 11, this means 5 extra rows.
     var board;
     var undoboards;//used for undo
     var redoboards;//used for redo
     var solveMode = true;
+    var showClueLetters = false;
+    var showLeftTriangles = false;
+    var showRightTriangles = false;
+    var settingLabel = false;
+    var settingLabelLabel = "?";
 
     function toggleSolveMode() {
         solveMode = !solveMode;
-        if (solveMode) {
+        if (solveMode && currentHexType > 10) {
             currentHexType = -1;
         }
+        settingLabel = false;
         createTools();
         drawBoard();
     }
@@ -2658,16 +2875,18 @@ $(document).ready(function () {
             click: function (ctrlKey, shiftKey) {
                 undoBoardChange(shiftKey ? 10 : 1);
                 drawBoard();
+                return true;
             },
             draw: "<",
         });
         tools.push({
-            name: "Redo (or Ctrl+z)(+Shift to redo 10 steps at a time)",
+            name: "Redo (or Ctrl+y)(+Shift to redo 10 steps at a time)",
             color: "lightgray",
             //shortcutKey: "^up",
             click: function (ctrlKey, shiftKey) {
                 redoBoardChange(shiftKey ? 10 : 1);
                 drawBoard();
+                return true;
             },
             draw: ">",
         });
@@ -2681,6 +2900,7 @@ $(document).ready(function () {
                 toolClickAutoUnshade();
 
                 drawBoard();
+                return true;
             },
             draw: "//",
         });
@@ -2742,6 +2962,7 @@ $(document).ready(function () {
                 }
                 checkAnswer();
                 drawBoard();
+                return true;
             },
             draw: "X",
         });
@@ -2751,6 +2972,7 @@ $(document).ready(function () {
             //shortcutKey: "^up",
             click: function () {
                 window.open("Sonari.html?boardDef=" + escape(getBoardDef()));
+                return true;
             },
             draw: "⍈",
         });
@@ -2760,23 +2982,51 @@ $(document).ready(function () {
             //shortcutKey: "^up",
             click: function () {
                 toggleSolveMode();
+                return true;
             },
-            draw: "✎",
+            draw: function () {
+                if (!solveMode) {
+                    drawToolShadow(this);
+                }
+                drawString("✎", this.x + this.width / 2 - 8.5, this.y + 21.5, "black");
+            }
+
         });
+
+        tools.push({
+            name: showClueLetters ? "Hide Clue Letters" : "Show Clue Letters",
+            color: "lightgray",
+            //shortcutKey: "^up",
+            click: function () {
+                showClueLetters = !showClueLetters;
+                createTools();
+                drawBoard();
+
+                return true;
+            },
+            draw: function () {
+                if (showClueLetters) {
+                    drawToolShadow(this);
+                }
+                ctx.font = '12px sans-serif';
+                drawString("ABC", this.x + this.width / 2 - 12.5, this.y + 18.5, "black");
+                ctx.font = '20px sans-serif';
+
+            }
+        });
+
         tools.push({
             name: "First time? Watch an example video",
             color: "lightgray",
             //shortcutKey: "^up",
             click: function () {
                 window.open("https://youtu.be/sjcfpVAKalI");
-                
                 return true;
             },
             draw: function () {
                 ctx.font = '12px sans-serif';
-                drawString("Help", this.x + this.width / 2 - 12.5, this.y + 3.5, "black");
+                drawString("Help", this.x + this.width / 2 - 12.5, this.y + 18.5, "black");
                 ctx.font = '20px sans-serif';
-
             }
         });
 
@@ -2785,22 +3035,90 @@ $(document).ready(function () {
             if (shortcutKey)
 
                 tools.push({
-                    name: "",//"Draw: " + hexTypes[i].name,// + " (" + i.toString() + ")",
+                    name: ["Mark cells with " + hexTypes[i].name, (solveMode ? "" : "(To make a clue, add color then number)")],// + " (" + i.toString() + ")",
                     hexType: i,
                     color: hexTypes[i].color,
                     symbol: hexTypes[i].symbol,
                     shortcutKey: hexTypes[i].shortcutKey,//"key_" + hexTypes[i].name,
                     click: function () {
                         currentHexType = this.hexType;
+                        settingLabel = false;
                         drawBoard();
+                        return true;
                     },
                     draw: function () {
                         if (currentHexType == this.hexType) {
                             drawToolShadow(this);
                         }
-                        drawString(this.symbol, this.x + this.width / 2 - 6.5, this.y + 3.5, "black");
+                        if (showClueLetters || this.hexType >= 11) {
+                            drawString(this.symbol, this.x + this.width / 2 - 6.5, this.y + 21.5, "black");
+                        }
                     }
                 });
+        }
+        if (!solveMode) {
+
+            tools.push({
+                name: "Label clue with 1-2 characters ",//"Draw: " + hexTypes[i].name,// + " (" + i.toString() + ")",
+                color: "lightgray",
+                click: function () {
+                    settingLabelLabel = prompt("Characters to display:", "?");
+                    if (settingLabelLabel && settingLabelLabel.length > 2) {
+                        alert("Please type 1 or 2 characters");
+                        settingLabel = false;
+                    } else if (!settingLabelLabel || settingLabelLabel.length == 0) {
+                        settingLabel = false;
+                    } else {
+                        settingLabel = true;
+                    }
+                    drawBoard();
+                    return true;
+                },
+                draw: function () {
+                    if (settingLabel) {
+                        drawToolShadow(this);
+                    }
+                    ctx.font = '16px sans-serif';
+                    drawString("*>?", this.x + this.width / 2 - 12.5, this.y + 21.5, "black");
+                    ctx.font = '20px sans-serif';
+                }
+            });
+            tools.push({
+                name: showLeftTriangles ? "Hide Left Triangle Clues" : "Show Left Triangle Clues",//"Draw: " + hexTypes[i].name,// + " (" + i.toString() + ")",
+                color: "lightgray",
+                click: function () {
+                    showLeftTriangles = !showLeftTriangles;
+                    showRightTriangles = false;
+                    createTools();
+                    drawBoard();
+
+                    return true;
+                },
+                draw: function () {
+                    if (showLeftTriangles) {
+                        drawToolShadow(this);
+                    }
+                    drawString("◀", this.x + this.width / 2 - 8.5, this.y + 21.5, "black");
+                }
+            });
+            tools.push({
+                name: showRightTriangles ? "Hide Right Triangle Clues" : "Show Right Triangle Clues",//"Draw: " + hexTypes[i].name,// + " (" + i.toString() + ")",
+                color: "lightgray",
+                click: function () {
+                    showRightTriangles = !showRightTriangles;
+                    showLeftTriangles = false;
+                    createTools();
+                    drawBoard();
+
+                    return true;
+                },
+                draw: function () {
+                    if (showRightTriangles) {
+                        drawToolShadow(this);
+                    }
+                    drawString("▶", this.x + this.width / 2 - 8.5, this.y + 21.5, "black");
+                }
+            });
         }
 
         //for (var i = 1; i <= 9; i++) {
@@ -2833,10 +3151,10 @@ $(document).ready(function () {
                         COLS = Number(sidelen) * 2 - 1;
                         ROWS = COLS;
                         resetBoard();
-                        recalcDrawingOffsets();
                         drawBoard();
                         colCellGroupsCoords = [];
                     }
+                    return true;
                 },
                 draw: "⌬",
             });
@@ -3100,6 +3418,7 @@ $(document).ready(function () {
 
 
                     drawBoard();
+                    return true;
                 },
                 draw: "✓",
             });
@@ -3109,16 +3428,6 @@ $(document).ready(function () {
         //        tools.push(tools.shift());
         //        tools.push(tools.shift());
 
-        //tools.push({
-        //    name: "About",
-        //    color: "lightgray",
-        //    click: function () {
-        //        alert(
-        //            "Sonari setter/solver by BenceJoful\nVersion 0.0.1\nOriginal puzzle genre by Qinlux\n\nKeyboard shortcuts: Ctrl+z"
-        //        );
-        //    },
-        //    draw: "@",
-        //});
         let solvingTool = {
             name: "Solve: click to shade/unshade and modify ring sizes",
             color: solvingGradient,
@@ -3127,12 +3436,13 @@ $(document).ready(function () {
             click: function () {
                 currentHexType = -1;
                 drawBoard();
+                return true;
             },
             draw: function () {
                 if (currentHexType == -1) {
                     drawToolShadow(this);
                 }
-                drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 3.5, "black");
+                drawString(this.symbol, this.x + this.width / 2 - 3.5, this.y + 21.5, "black");
 
                 ctx.lineWidth = 2;
                 ctx.strokeStyle = "crimson";
@@ -3145,9 +3455,9 @@ $(document).ready(function () {
 
             }
         }
-        tools.splice(6, 0, solvingTool);
+        tools.splice(8, 0, solvingTool);
 
-        let toolRowCounts = [8, 7, 7];
+        let toolRowCounts = [8, 8, 7];
         let toolRowBreak = toolRowCounts.shift() - 1;
         //layout tools in columnar grid.
         let toolX = toolBoxLeft;
@@ -3215,12 +3525,533 @@ $(document).ready(function () {
         //}
         //tools.push(descriptionTool);
 
+        let triClueRelativeSize = .5;
+        //create triangular clue areas on the board.
+        for (let i = 0; i < COLS; i++) {
+            for (let j = 0; j < ROWS; j++) {
+                let cell = board[i][j];
+                if (cell && cell.hexTypeID > 0) {
+                    //check if this has necessary neighbor cells.
+                    let hasNeighbors = true;
+                    let radius1CellCoords = getCellTriCoords(cell, 1, false);
+                    for (let nCellCoords of radius1CellCoords) {
+                        let nCell = getBoardCell(nCellCoords);
+                        if (!nCell || nCell.hexTypeID == 0) {
+                            hasNeighbors = false;
+                            break;
+                        }
+                    }
+                    if (hasNeighbors) {
+                        let dcoords = getHexCenter(i, j);
+                        tools.push({
+                            name: "",
+                            color: "lightgray",
+                            //shortcutKey: "^up",
+                            click: function () {
+                                if (solveMode) {
+                                    let hexTypeID = this.cell.rightTriClueColorID;
+                                    if ((hexTypeID > 3 && this.cell.rightTriClueNumber)) {
+                                        let maxRadius = getMaxRadius(hexTypeID);
+
+                                        registerBoardChange();
+                                        if (event.buttons == 2) {
+                                            if (hexTypes[hexTypeID].radius > 0) {
+                                                hexTypes[hexTypeID].radius--;
+                                            } else {
+                                                hexTypes[hexTypeID].radius = maxRadius;
+                                            }
+                                        } else {
+                                            if (hexTypes[hexTypeID].radius < maxRadius) {
+                                                hexTypes[hexTypeID].radius++;
+                                            } else {
+                                                hexTypes[hexTypeID].radius = 0;
+                                            }
+                                        }
+                                        drawBoard();
+                                        return true;
+                                    } else {
+                                        return false;
+                                    }
+                                } else if (showRightTriangles || this.cell.rightTriClueColorID > 1) {
+                                    if (settingLabel && this.cell.rightTriClueColorID > 1 && this.cell.rightTriClueNumber) {
+                                        registerBoardChange();
+                                        this.cell.rightTriClueLabel = settingLabelLabel;
+                                        settingLabel = false;
+                                    } else if (currentHexType > 3 && currentHexType <= 10 && this.cell.rightTriClueColorID != currentHexType) {
+                                        registerBoardChange();
+                                        this.cell.rightTriClueColorID = currentHexType;
+                                    } else if (currentHexType > 10) {
+                                        if (this.cell.rightTriClueColorID > 1) {
+                                            registerBoardChange();
+                                            let newNumber = currentHexType - 11;
+                                            if (newNumber == 0) {
+                                                newNumber = 7;
+                                            }
+                                            if (this.cell.rightTriClueNumber == newNumber) {
+                                                this.cell.rightTriClueNumber = 0;
+                                                this.cell.rightTriClueLabel = "";
+                                            } else {
+                                                this.cell.rightTriClueNumber = newNumber;
+                                                this.cell.rightTriClueLabel = "";
+                                            }
+                                        }
+                                    } else {
+                                        registerBoardChange();
+                                        this.cell.rightTriClueColorID = 1;
+                                        this.cell.rightTriClueNumber = 0;
+                                        this.cell.rightTriClueLabel = "";
+                                    }
+                                    drawBoard();
+                                    return true;
+                                }
+                            },
+                            draw: function () {
+                                if ((this.cell.rightTriClueColorID > 3 && this.cell.rightTriClueNumber) || (!solveMode && showRightTriangles)) {
+                                    if (this.cell.rightTriClueColorID > 3 && this.cell.rightTriClueNumber) {
+                                        ctx.strokeStyle = "black";
+                                        ctx.lineWidth = 3;
+                                        ctx.globalAlpha = 1;
+                                    } else {
+                                        ctx.strokeStyle = "gray";
+                                        ctx.lineWidth = 1;
+                                        ctx.globalAlpha = .3;
+                                    }
+
+                                    let hexType = hexTypes[this.cell.rightTriClueColorID];
+                                    ctx.fillStyle = hexTypes[this.cell.rightTriClueColorID].color;
+                                    ctx.beginPath();
+                                    let triSidelen = this.width * 1.7 / 2;
+                                    ctx.moveTo(this.x + this.width * 1.5, this.y + this.height / 2);
+
+                                    ctx.lineTo(this.x, this.y + this.height / 2 - triSidelen);
+                                    ctx.lineTo(this.x, this.y + this.height / 2 + triSidelen);
+                                    ctx.closePath();
+                                    ctx.fill();
+                                    ctx.stroke();
+                                    //ctx.fillStyle = "lime";
+                                    //ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                                    if (this.cell.rightTriClueNumber) {
+                                        //draw number
+                                        ctx.font = linelen / 2 + 'px sans-serif';
+                                        let s = this.cell.rightTriClueNumber % 7;
+                                        if (this.cell.rightTriClueLabel != "") {
+                                            s = this.cell.rightTriClueLabel;
+                                        }
+                                        drawString(s, Math.round(this.x + linelen / 16), Math.round(this.y + this.height / 2 + linelen / 6), "black");
+
+                                        if (showClueLetters) {
+                                            //draw colorblind-friendly letter.
+                                            ctx.font = linelen / 3 + 'px sans-serif';
+                                            drawString(hexType.symbol, Math.round(this.x + this.width - linelen * 2 / 9), Math.round(this.y + linelen * 3 / 8), "black");
+                                        }
+                                    }
+                                    ctx.globalAlpha = 1;
+
+                                }
+                            },
+                            x: dcoords[0] + linelen - (linelen * triClueRelativeSize) / 2,
+                            y: dcoords[1] - (linelen * triClueRelativeSize) / 2,
+                            height: linelen * triClueRelativeSize,
+                            width: linelen * triClueRelativeSize,
+                            color: "",
+                            cell: cell,
+                        });
+                    }
+
+                    //check on left as well
+                    hasNeighbors = true;
+                    radius1CellCoords = getCellTriCoords(cell, 1, true);
+                    for (let nCellCoords of radius1CellCoords) {
+                        let nCell = getBoardCell(nCellCoords);
+                        if (!nCell || nCell.hexTypeID == 0) {
+                            hasNeighbors = false;
+                            break;
+                        }
+                    }
+                    if (hasNeighbors) {
+                        let dcoords = getHexCenter(i, j);
+                        tools.push({
+                            name: "",
+                            color: "lightgray",
+                            //shortcutKey: "^up",
+                            click: function () {
+                                if (solveMode) {
+                                    let hexTypeID = this.cell.leftTriClueColorID;
+                                    if ((hexTypeID > 3 && this.cell.leftTriClueNumber)) {
+                                        let maxRadius = getMaxRadius(hexTypeID);
+
+                                        registerBoardChange();
+                                        if (event.buttons == 2) {
+                                            if (hexTypes[hexTypeID].radius > 0) {
+                                                hexTypes[hexTypeID].radius--;
+                                            } else {
+                                                hexTypes[hexTypeID].radius = maxRadius;
+                                            }
+                                        } else {
+                                            if (hexTypes[hexTypeID].radius < maxRadius) {
+                                                hexTypes[hexTypeID].radius++;
+                                            } else {
+                                                hexTypes[hexTypeID].radius = 0;
+                                            }
+                                        }
+                                        drawBoard();
+                                        return true;
+                                    } else {
+                                        return false;
+                                    }
+                                } else if (showLeftTriangles || this.cell.leftTriClueColorID > 1) {
+                                    if (settingLabel && this.cell.leftTriClueColorID > 1 && this.cell.leftTriClueNumber) {
+                                        registerBoardChange();
+                                        this.cell.leftTriClueLabel = settingLabelLabel;
+                                        settingLabel = false;
+                                    } else if (currentHexType > 3 && currentHexType <= 10 && this.cell.leftTriClueColorID != currentHexType) {
+                                        registerBoardChange();
+                                        this.cell.leftTriClueColorID = currentHexType;
+                                    } else if (currentHexType > 10) {
+                                        if (this.cell.leftTriClueColorID > 1) {
+                                            registerBoardChange();
+                                            let newNumber = currentHexType - 11;
+                                            if (newNumber == 0) {
+                                                newNumber = 7;
+                                            }
+                                            if (this.cell.leftTriClueNumber == newNumber) {
+                                                this.cell.leftTriClueNumber = 0;
+                                                this.cell.leftTriClueLabel = "";
+                                            } else {
+                                                this.cell.leftTriClueNumber = newNumber;
+                                                this.cell.leftTriClueLabel = "";
+                                            }
+                                        }
+                                    } else {
+                                        registerBoardChange();
+                                        this.cell.leftTriClueColorID = 1;
+                                        this.cell.leftTriClueNumber = 0;
+                                        this.cell.leftTriClueLabel = "";
+                                    }
+                                    drawBoard();
+                                    return true;
+                                }
+                            },
+                            draw: function () {
+                                if ((this.cell.leftTriClueColorID > 3 && this.cell.leftTriClueNumber) || (!solveMode && showLeftTriangles)) {
+                                    if (this.cell.leftTriClueColorID > 3 && this.cell.leftTriClueNumber) {
+                                        ctx.strokeStyle = "black";
+                                        ctx.lineWidth = 3;
+                                        ctx.globalAlpha = 1;
+                                    } else {
+                                        ctx.strokeStyle = "gray";
+                                        ctx.lineWidth = 1;
+                                        ctx.globalAlpha = .3;
+                                    }
+
+                                    let hexType = hexTypes[this.cell.leftTriClueColorID];
+                                    ctx.fillStyle = hexTypes[this.cell.leftTriClueColorID].color;
+                                    ctx.beginPath();
+                                    let triSidelen = this.width * 1.7 / 2;
+                                    ctx.moveTo(this.x - this.width * .5, this.y + this.height / 2);
+
+                                    ctx.lineTo(this.x + this.width, this.y + this.height / 2 - triSidelen);
+                                    ctx.lineTo(this.x + this.width, this.y + this.height / 2 + triSidelen);
+                                    ctx.closePath();
+
+                                    ctx.fill();
+                                    ctx.stroke();
+                                    //ctx.fillStyle = "yellow";
+                                    //ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                                    if (this.cell.leftTriClueNumber) {
+                                        //draw number
+                                        ctx.font = linelen / 2 + 'px sans-serif';
+                                        let s = this.cell.leftTriClueNumber % 7;
+                                        if (this.cell.leftTriClueLabel != "") {
+                                            s = this.cell.leftTriClueLabel;
+                                        }
+                                        drawString(s, Math.round(this.x + linelen / 6), Math.round(this.y + this.height / 2 + linelen / 6), "black");
+
+                                        if (showClueLetters) {
+                                            //draw colorblind-friendly letter.
+                                            ctx.font = linelen / 3 + 'px sans-serif';
+                                            drawString(hexType.symbol, Math.round(this.x + this.width - linelen * 4 / 8), Math.round(this.y + linelen * 3 / 8), "black");
+                                        }
+                                    }
+                                    ctx.globalAlpha = 1;
+                                }
+                            },
+                            x: dcoords[0] - linelen - (linelen * triClueRelativeSize) / 2,
+                            y: dcoords[1] - (linelen * triClueRelativeSize) / 2,
+                            height: linelen * triClueRelativeSize,
+                            width: linelen * triClueRelativeSize,
+                            color: "",
+                            cell: cell,
+                        });
+                    }
+                    //do it all again, but this time to face into the center of the hexes.
+                    hasNeighbors = true;
+                    radius1CellCoords = getCellTriCoords(cell, 1, false, true);
+                    for (let nCellCoords of radius1CellCoords) {
+                        let nCell = getBoardCell(nCellCoords);
+                        if (!nCell || nCell.hexTypeID == 0) {
+                            hasNeighbors = false;
+                            break;
+                        }
+                    }
+                    if (hasNeighbors) {
+                        let dcoords = getHexCenter(i, j);
+                        tools.push({
+                            name: "",
+                            color: "lightgray",
+                            //shortcutKey: "^up",
+                            click: function () {
+                                if (solveMode) {
+                                    let hexTypeID = this.cell.rightTriClue2ColorID;
+                                    if ((hexTypeID > 3 && this.cell.rightTriClue2Number)) {
+                                        let maxRadius = getMaxRadius(hexTypeID);
+
+                                        registerBoardChange();
+                                        if (event.buttons == 2) {
+                                            if (hexTypes[hexTypeID].radius > 0) {
+                                                hexTypes[hexTypeID].radius--;
+                                            } else {
+                                                hexTypes[hexTypeID].radius = maxRadius;
+                                            }
+                                        } else {
+                                            if (hexTypes[hexTypeID].radius < maxRadius) {
+                                                hexTypes[hexTypeID].radius++;
+                                            } else {
+                                                hexTypes[hexTypeID].radius = 0;
+                                            }
+                                        }
+                                        drawBoard();
+                                        return true;
+                                    } else {
+                                        return false;
+                                    }
+                                } else if (showLeftTriangles || this.cell.rightTriClue2ColorID > 1) {
+                                    if (settingLabel && this.cell.rightTriClue2ColorID > 1 && this.cell.rightTriClue2Number) {
+                                        registerBoardChange();
+                                        this.cell.rightTriClue2Label = settingLabelLabel;
+                                        settingLabel = false;
+                                    } else if (currentHexType > 3 && currentHexType <= 10 && this.cell.rightTriClue2ColorID != currentHexType) {
+                                        registerBoardChange();
+                                        this.cell.rightTriClue2ColorID = currentHexType;
+                                    } else if (currentHexType > 10) {
+                                        if (this.cell.rightTriClue2ColorID > 1) {
+                                            registerBoardChange();
+                                            let newNumber = currentHexType - 11;
+                                            if (newNumber == 0) {
+                                                newNumber = 7;
+                                            }
+                                            if (this.cell.rightTriClue2Number == newNumber) {
+                                                this.cell.rightTriClue2Number = 0;
+                                                this.cell.rightTriClue2Label = "";
+                                            } else {
+                                                this.cell.rightTriClue2Number = newNumber;
+                                                this.cell.rightTriClue2Label = "";
+                                            }
+                                        }
+                                    } else {
+                                        registerBoardChange();
+                                        this.cell.rightTriClue2ColorID = 1;
+                                        this.cell.rightTriClue2Number = 0;
+                                        this.cell.rightTriClue2Label = "";
+                                    }
+                                    drawBoard();
+                                    return true;
+                                }
+                            },
+                            draw: function () {
+                                if ((this.cell.rightTriClue2ColorID > 3 && this.cell.rightTriClue2Number) || (!solveMode && showLeftTriangles)) {
+                                    if (this.cell.rightTriClue2ColorID > 3 && this.cell.rightTriClue2Number) {
+                                        ctx.strokeStyle = "black";
+                                        ctx.lineWidth = 3;
+                                        ctx.globalAlpha = 1;
+                                    } else {
+                                        ctx.strokeStyle = "gray";
+                                        ctx.lineWidth = 1;
+                                        ctx.globalAlpha = .3;
+                                    }
+
+                                    let hexType = hexTypes[this.cell.rightTriClue2ColorID];
+                                    ctx.fillStyle = hexTypes[this.cell.rightTriClue2ColorID].color;
+                                    ctx.beginPath();
+                                    let triSidelen = this.width * 1.7 / 2;
+                                    ctx.moveTo(this.x - this.width * .5, this.y + this.height / 2);
+
+                                    ctx.lineTo(this.x + this.width, this.y + this.height / 2 - triSidelen);
+                                    ctx.lineTo(this.x + this.width, this.y + this.height / 2 + triSidelen);
+                                    ctx.closePath();
+
+                                    ctx.fill();
+                                    ctx.stroke();
+                                    //ctx.fillStyle = "yellow";
+                                    //ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                                    if (this.cell.rightTriClue2Number) {
+                                        //draw number
+                                        ctx.font = linelen / 2 + 'px sans-serif';
+                                        let s = this.cell.rightTriClue2Number % 7;
+                                        if (this.cell.rightTriClue2Label != "") {
+                                            s = this.cell.rightTriClue2Label;
+                                        }
+                                        drawString(s, Math.round(this.x + linelen / 6), Math.round(this.y + this.height / 2 + linelen / 6), "black");
+
+                                        if (showClueLetters) {
+                                            //draw colorblind-friendly letter.
+                                            ctx.font = linelen / 3 + 'px sans-serif';
+                                            drawString(hexType.symbol, Math.round(this.x + this.width - linelen * 4 / 8), Math.round(this.y + linelen * 3 / 8), "black");
+                                        }
+                                    }
+                                    ctx.globalAlpha = 1;
+
+                                }
+                            },
+                            x: dcoords[0] + linelen - (linelen * triClueRelativeSize) / 2,
+                            y: dcoords[1] - (linelen * triClueRelativeSize) / 2,
+                            height: linelen * triClueRelativeSize,
+                            width: linelen * triClueRelativeSize,
+                            color: "",
+                            cell: cell,
+                        });
+                    }
+
+                    //check on left as well
+                    hasNeighbors = true;
+                    radius1CellCoords = getCellTriCoords(cell, 1, true, true);
+                    for (let nCellCoords of radius1CellCoords) {
+                        let nCell = getBoardCell(nCellCoords);
+                        if (!nCell || nCell.hexTypeID == 0) {
+                            hasNeighbors = false;
+                            break;
+                        }
+                    }
+                    if (hasNeighbors) {
+                        let dcoords = getHexCenter(i, j);
+                        tools.push({
+                            name: "",
+                            color: "lightgray",
+                            //shortcutKey: "^up",
+                            click: function () {
+                                if (solveMode) {
+                                    let hexTypeID = this.cell.leftTriClue2ColorID;
+                                    if ((hexTypeID > 3 && this.cell.leftTriClue2Number)) {
+                                        let maxRadius = getMaxRadius(hexTypeID);
+
+                                        registerBoardChange();
+                                        if (event.buttons == 2) {
+                                            if (hexTypes[hexTypeID].radius > 0) {
+                                                hexTypes[hexTypeID].radius--;
+                                            } else {
+                                                hexTypes[hexTypeID].radius = maxRadius;
+                                            }
+                                        } else {
+                                            if (hexTypes[hexTypeID].radius < maxRadius) {
+                                                hexTypes[hexTypeID].radius++;
+                                            } else {
+                                                hexTypes[hexTypeID].radius = 0;
+                                            }
+                                        }
+                                        drawBoard();
+                                        return true;
+                                    } else {
+                                        return false;
+                                    }
+                                } else if (showRightTriangles || this.cell.leftTriClue2ColorID > 1) {
+                                    if (settingLabel && this.cell.leftTriClue2ColorID > 1 && this.cell.leftTriClue2Number) {
+                                        registerBoardChange();
+                                        this.cell.leftTriClue2Label = settingLabelLabel;
+                                        settingLabel = false;
+                                    } else if (currentHexType > 3 && currentHexType <= 10 && this.cell.leftTriClue2ColorID != currentHexType) {
+                                        registerBoardChange();
+                                        this.cell.leftTriClue2ColorID = currentHexType;
+                                    } else if (currentHexType > 10) {
+                                        if (this.cell.leftTriClue2ColorID > 1) {
+                                            registerBoardChange();
+                                            let newNumber = currentHexType - 11;
+                                            if (newNumber == 0) {
+                                                newNumber = 7;
+                                            }
+                                            if (this.cell.leftTriClue2Number == newNumber) {
+                                                this.cell.leftTriClue2Number = 0;
+                                                this.cell.leftTriClue2Label = "";
+                                            } else {
+                                                this.cell.leftTriClue2Number = newNumber;
+                                                this.cell.leftTriClue2Label = "";
+                                            }
+                                        }
+                                    } else {
+                                        registerBoardChange();
+                                        this.cell.leftTriClue2ColorID = 1;
+                                        this.cell.leftTriClue2Number = 0;
+                                        this.cell.leftTriClue2Label = "";
+                                    }
+                                    drawBoard();
+                                    return true;
+                                }
+                            },
+                            draw: function () {
+                                if ((this.cell.leftTriClue2ColorID > 3 && this.cell.leftTriClue2Number) || (!solveMode && showRightTriangles)) {
+                                    if (this.cell.leftTriClue2ColorID > 3 && this.cell.leftTriClue2Number) {
+                                        ctx.strokeStyle = "black";
+                                        ctx.lineWidth = 3;
+                                        ctx.globalAlpha = 1;
+                                    } else {
+                                        ctx.strokeStyle = "gray";
+                                        ctx.lineWidth = 1;
+                                        ctx.globalAlpha = .3;
+                                    }
+
+                                    let hexType = hexTypes[this.cell.leftTriClue2ColorID];
+                                    ctx.fillStyle = hexTypes[this.cell.leftTriClue2ColorID].color;
+                                    ctx.beginPath();
+                                    let triSidelen = this.width * 1.7 / 2;
+                                    ctx.moveTo(this.x + this.width * 1.5, this.y + this.height / 2);
+
+                                    ctx.lineTo(this.x, this.y + this.height / 2 - triSidelen);
+                                    ctx.lineTo(this.x, this.y + this.height / 2 + triSidelen);
+                                    ctx.closePath();
+                                    ctx.fill();
+                                    ctx.stroke();
+                                    //ctx.fillStyle = "lime";
+                                    //ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                                    if (this.cell.leftTriClue2Number) {
+                                        //draw number
+                                        ctx.font = linelen / 2 + 'px sans-serif';
+                                        let s = this.cell.leftTriClue2Number % 7;
+                                        if (this.cell.leftTriClue2Label != "") {
+                                            s = this.cell.leftTriClue2Label;
+                                        }
+                                        drawString(s, Math.round(this.x + linelen / 16), Math.round(this.y + this.height / 2 + linelen / 6), "black");
+
+                                        if (showClueLetters) {
+                                            //draw colorblind-friendly letter.
+                                            ctx.font = linelen / 3 + 'px sans-serif';
+                                            drawString(hexType.symbol, Math.round(this.x + this.width - linelen * 2 / 9), Math.round(this.y + linelen * 3 / 8), "black");
+                                        }
+                                    }
+                                    ctx.globalAlpha = 1;
+                                }
+                            },
+                            x: dcoords[0] - linelen - (linelen * triClueRelativeSize) / 2,
+                            y: dcoords[1] - (linelen * triClueRelativeSize) / 2,
+                            height: linelen * triClueRelativeSize,
+                            width: linelen * triClueRelativeSize,
+                            color: "",
+                            cell: cell,
+                        });
+                    }
+                }
+            }
+        }
+
+
         for (var i = 0; i < tools.length; i++) {
             var tool = tools[i];
             addMouseOverText(tool.name, "tool", tool.x, tool.y, tool.x + tool.width, tool.y + tool.height);
         }
     }
-    createTools();
+    //createTools();
     function promptDescription() {
         var d = "~";
         var promptText = "Description";
@@ -3252,10 +4083,10 @@ $(document).ready(function () {
         importBoard();
     } else {
         resetBoard();
-        recalcDrawingOffsets();
         drawBoard();
     }
 
     //$('#btnImport').click(importBoard);
     $('#hTitle').click(promptDescription);
 });
+
