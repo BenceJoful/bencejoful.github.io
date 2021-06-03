@@ -1534,7 +1534,7 @@ $(document).ready(function () {
             }
             cell.showRing = true;
         } else {
-            board[hexCoords[0]][hexCoords[1]] = new Cell(hexCoords[0], hexCoords[1], hexTypeID, 0, null, true, 1, 0, "", 1, 0, "", 1, 0, "", 1, 0, "");
+            board[hexCoords[0]][hexCoords[1]] = new Cell(hexCoords[0], hexCoords[1], hexTypeID, 0, null, true, 1, 0, "", 1, 0, "", 1, 0, "", 1, 0, "", true, true, true, true);
         }
     };
     function setBoardNumber(hexCoords, number) {
