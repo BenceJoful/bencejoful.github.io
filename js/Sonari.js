@@ -1,11 +1,6 @@
 ﻿/*todo: 
  * hover over clue to highlight that clue's ring, and non-shaded cells on the ring.  
  * user setting to show finished clues, or tool to toggle them off individually.
- * Triangular clues:
-    * pay attention when detecting puzzle solved.
-    * hide/fade triangular ring when appropriate
-    * fix how to set clues in edit mode, at least how unnumbered clues are displayed and exported.
- * Setting arbitrary text on clues: breaks 'congrats' message.
  * Mobile friendly - bigger controls
  * Help section with rules and interface guide, or video?
  * Gallery of puzzles to include.
@@ -34,7 +29,20 @@ $(document).ready(function () {
         leftTriClue2ColorID = 1;
         leftTriClue2Number = 0;
         leftTriClue2Label = "";
-        constructor(x, y, hexTypeID, number, sudokuCellGroups, showRing, rightTriClueColorID, rightTriClueNumber, rightTriClueLabel, leftTriClueColorID, leftTriClueNumber, leftTriClueLabel, rightTriClue2ColorID, rightTriClue2Number, rightTriClue2Label, leftTriClue2ColorID, leftTriClue2Number, leftTriClue2Label) {
+        showRightTriRing = true;
+        showLeftTriRing = true;
+        showRightTri2Ring = true;
+        showLeftTri2Ring = true;
+        constructor(x, y, hexTypeID, number, sudokuCellGroups, showRing,
+            rightTriClueColorID, rightTriClueNumber, rightTriClueLabel,
+            leftTriClueColorID, leftTriClueNumber, leftTriClueLabel,
+            rightTriClue2ColorID, rightTriClue2Number, rightTriClue2Label,
+            leftTriClue2ColorID, leftTriClue2Number, leftTriClue2Label,
+            showRightTriRing,
+            showLeftTriRing,
+            showRightTri2Ring,
+            showLeftTri2Ring,
+        ) {
             this.x = x;
             this.y = y;
             this.hexTypeID = hexTypeID;
@@ -53,6 +61,11 @@ $(document).ready(function () {
             this.leftTriClue2ColorID = leftTriClue2ColorID;
             this.leftTriClue2Number = leftTriClue2Number;
             this.leftTriClue2Label = leftTriClue2Label;
+            this.showRightTriRing = showRightTriRing;
+            this.showLeftTriRing = showLeftTriRing;
+            this.showRightTri2Ring = showRightTri2Ring;
+            this.showLeftTri2Ring = showLeftTri2Ring;
+
         }
     }
     function getCellClone(cell) {
@@ -60,7 +73,9 @@ $(document).ready(function () {
             cell.rightTriClueColorID, cell.rightTriClueNumber, cell.rightTriClueLabel,
             cell.leftTriClueColorID, cell.leftTriClueNumber, cell.leftTriClueLabel,
             cell.rightTriClue2ColorID, cell.rightTriClue2Number, cell.rightTriClue2Label,
-            cell.leftTriClue2ColorID, cell.leftTriClue2Number, cell.leftTriClue2Label);
+            cell.leftTriClue2ColorID, cell.leftTriClue2Number, cell.leftTriClue2Label,
+            cell.showRightTriRing, cell.showLeftTriRing, cell.showRightTri2Ring, cell.showLeftTri2Ring
+        );
     }
 
     function getDrawCoords(x, y, overX) {
@@ -327,8 +342,7 @@ $(document).ready(function () {
                     if (cell.hexTypeID > 3 && cell.number) {
                         let hexType = hexTypes[cell.hexTypeID];
                         if (hexType.radius) {
-                            //three types of clues here, same ringline logic.
-                            coordsLists.push([hexType.color, getCellRingCoords(cell, hexType.radius)]);
+                            coordsLists.push([(cell.showRing ? "" : "_") + hexType.color, getCellRingCoords(cell, hexType.radius)]);
                         }
                     }
                     if (cell.leftTriClueColorID > 3 && cell.leftTriClueNumber) {
@@ -336,7 +350,7 @@ $(document).ready(function () {
                         //when inserting into ringlines, make sure all coordinates are left to right, top to bottom.
                         let hexType = hexTypes[cell.leftTriClueColorID];
                         if (hexType.radius) {
-                            coordsLists.push([hexType.color, getCellTriCoords(cell, hexType.radius, true)]);
+                            coordsLists.push([(cell.showLeftTriRing ? "" : "_") + hexType.color, getCellTriCoords(cell, hexType.radius, true)]);
                         }
                     }
                     if (cell.rightTriClueColorID > 3 && cell.rightTriClueNumber) {
@@ -344,7 +358,7 @@ $(document).ready(function () {
                         //when inserting into ringlines, make sure all coordinates are left to right, top to bottom.
                         let hexType = hexTypes[cell.rightTriClueColorID];
                         if (hexType.radius) {
-                            coordsLists.push([hexType.color, getCellTriCoords(cell, hexType.radius, false)]);
+                            coordsLists.push([(cell.showRightTriRing ? "" : "_") + hexType.color, getCellTriCoords(cell, hexType.radius, false)]);
                         }
                     }
                     if (cell.leftTriClue2ColorID > 3 && cell.leftTriClue2Number) {
@@ -352,7 +366,7 @@ $(document).ready(function () {
                         //when inserting into ringlines, make sure all coordinates are left to right, top to bottom.
                         let hexType = hexTypes[cell.leftTriClue2ColorID];
                         if (hexType.radius) {
-                            coordsLists.push([hexType.color, getCellTriCoords(cell, hexType.radius, true, true)]);
+                            coordsLists.push([(cell.showLeftTri2Ring ? "" : "_") + hexType.color, getCellTriCoords(cell, hexType.radius, true, true)]);
                         }
                     }
                     if (cell.rightTriClue2ColorID > 3 && cell.rightTriClue2Number) {
@@ -360,11 +374,11 @@ $(document).ready(function () {
                         //when inserting into ringlines, make sure all coordinates are left to right, top to bottom.
                         let hexType = hexTypes[cell.rightTriClue2ColorID];
                         if (hexType.radius) {
-                            coordsLists.push([hexType.color, getCellTriCoords(cell, hexType.radius, false, true)]);
+                            coordsLists.push([(cell.showRightTri2Ring ? "" : "_") + hexType.color, getCellTriCoords(cell, hexType.radius, false, true)]);
                         }
                     }
                     for (let coordsList of coordsLists) {
-                        let hexColor = coordsList[0];
+                        let ringColor = coordsList[0];
                         coordsList = coordsList[1];
                         if (coordsList) {
                             let ringLine = {
@@ -382,10 +396,6 @@ $(document).ready(function () {
                                     ringLine.y1 = ringCoords[1];
                                 }
                                 ringLine = JSON.stringify(ringLine);
-                                let ringColor = hexColor;
-                                if (!cell.showRing) {
-                                    ringColor = "_" + ringColor;
-                                }
                                 if (ringLines[ringLine]) {
                                     ringLines[ringLine].push(ringColor);
                                 } else {
@@ -1091,6 +1101,110 @@ $(document).ready(function () {
                             answerValid = false;
                         }
 
+                    }
+                    if (cell.leftTriClueColorID > 1 && cell.leftTriClueNumber) {
+                        let hexType = hexTypes[cell.leftTriClueColorID];
+                        if (hexType.radius) {
+                            let clueShadedCellCnt = 0;
+                            let allCellsShaded = true;
+                            for (var cellCoords of getCellTriCoords(cell, hexType.radius, true, false)) {
+                                let ringCell = getBoardCell(cellCoords);
+                                if (ringCell) {
+                                    if (ringCell.hexTypeID == 3) {
+                                        clueShadedCellCnt++;
+                                    } else if (ringCell.hexTypeID == 1) {
+                                        allCellsShaded = false;
+                                    }
+                                }
+                            }
+                            if (cell.leftTriClueNumber % 7 != clueShadedCellCnt) {
+                                answerValid = false;
+                                cell.showLeftTriRing = true;
+                            } else if (allCellsShaded && cell.leftTriClueLabel == "") {
+                                //hide this ring.
+                                cell.showLeftTriRing = false;
+                            }
+                        } else {
+                            answerValid = false;
+                        }
+                    }
+                    if (cell.rightTriClueColorID > 1 && cell.rightTriClueNumber) {
+                        let hexType = hexTypes[cell.rightTriClueColorID];
+                        if (hexType.radius) {
+                            let clueShadedCellCnt = 0;
+                            let allCellsShaded = true;
+                            for (var cellCoords of getCellTriCoords(cell, hexType.radius, false, false)) {
+                                let ringCell = getBoardCell(cellCoords);
+                                if (ringCell) {
+                                    if (ringCell.hexTypeID == 3) {
+                                        clueShadedCellCnt++;
+                                    } else if (ringCell.hexTypeID == 1) {
+                                        allCellsShaded = false;
+                                    }
+                                }
+                            }
+                            if (cell.rightTriClueNumber % 7 != clueShadedCellCnt) {
+                                answerValid = false;
+                                cell.showRightTriRing = true;
+                            } else if (allCellsShaded && cell.rightTriClueLabel == "") {
+                                //hide this ring.
+                                cell.showRightTriRing = false;
+                            }
+                        } else {
+                            answerValid = false;
+                        }
+                    }
+                    if (cell.leftTriClue2ColorID > 1 && cell.leftTriClue2Number) {
+                        let hexType = hexTypes[cell.leftTriClue2ColorID];
+                        if (hexType.radius) {
+                            let clueShadedCellCnt = 0;
+                            let allCellsShaded = true;
+                            for (var cellCoords of getCellTriCoords(cell, hexType.radius, true, true)) {
+                                let ringCell = getBoardCell(cellCoords);
+                                if (ringCell) {
+                                    if (ringCell.hexTypeID == 3) {
+                                        clueShadedCellCnt++;
+                                    } else if (ringCell.hexTypeID == 1) {
+                                        allCellsShaded = false;
+                                    }
+                                }
+                            }
+                            if (cell.leftTriClue2Number % 7 != clueShadedCellCnt) {
+                                answerValid = false;
+                                cell.showLeftTri2Ring = true;
+                            } else if (allCellsShaded && cell.leftTriClue2Label == "") {
+                                //hide this ring.
+                                cell.showLeftTri2Ring = false;
+                            }
+                        } else {
+                            answerValid = false;
+                        }
+                    }
+                    if (cell.rightTriClue2ColorID > 1 && cell.rightTriClue2Number) {
+                        let hexType = hexTypes[cell.rightTriClue2ColorID];
+                        if (hexType.radius) {
+                            let clueShadedCellCnt = 0;
+                            let allCellsShaded = true;
+                            for (var cellCoords of getCellTriCoords(cell, hexType.radius, false, true)) {
+                                let ringCell = getBoardCell(cellCoords);
+                                if (ringCell) {
+                                    if (ringCell.hexTypeID == 3) {
+                                        clueShadedCellCnt++;
+                                    } else if (ringCell.hexTypeID == 1) {
+                                        allCellsShaded = false;
+                                    }
+                                }
+                            }
+                            if (cell.rightTriClue2Number % 7 != clueShadedCellCnt) {
+                                answerValid = false;
+                                cell.showRightTri2Ring = true;
+                            } else if (allCellsShaded && cell.rightTriClue2Label == "") {
+                                //hide this ring.
+                                cell.showRightTri2Ring = false;
+                            }
+                        } else {
+                            answerValid = false;
+                        }
                     }
                     ////travel in all directions until finding a space without a cell.
                     //for (let dir = 0; dir < 6; dir++) {
@@ -3204,7 +3318,7 @@ $(document).ready(function () {
                         //else, set value to 1, then go on to the next X.
                         for (let i = startingIdx || 0, len = cellList.length; i < len; i++) {
                             var cell = cellList[i];
-                            if (cell.hexTypeID == 1) {
+                            if (cell.hexTypeID == 1 || (cell.hexTypeID >= 4 && cell.hexTypeID <= 10 && !cell.number)) {
                                 verifyCount++;
 
                                 let isPossibleStar = true;
@@ -3377,7 +3491,7 @@ $(document).ready(function () {
                         for (let i = 0; i < COLS; i++) {
                             for (let j = 0; j < ROWS; j++) {
                                 var cell = getBoardCell([i, j]);
-                                if (cell && cell.hexTypeID > 0 && cell.hexTypeID < 3) {
+                                if (cell && cell.hexTypeID > 0 && !cell.number) {
                                     var isAlwaysShaded = true;
                                     var isAlwaysUnshaded = true;
                                     for (let solBoard of unpackedSolutionBoards) {
