@@ -4,6 +4,7 @@
  * Mobile friendly - bigger controls
  * Help section with rules and interface guide, or video?
  * Gallery of puzzles to include.
+ * Solution check for 0s on ring being hidden.
 */
 
 'use strict';
@@ -1097,7 +1098,8 @@ $(document).ready(function () {
                                 //hide this ring.
                                 cell.showRing = false;
                             }
-                        } else {
+                        } else if (!(hexType.radius == 0 && cell.number % 7 == 0)) {
+                            //only allow 0-radius rings if the number is "0".
                             answerValid = false;
                         }
 
@@ -3440,7 +3442,7 @@ $(document).ready(function () {
                                     colStarCount++;
                                     for (let ncoords of getAllNeighborHexCoords([cell.x, cell.y])) {
                                         let c2 = getBoardCell(ncoords);
-                                        if (c2 && c2.hexTypeID > 0) {
+                                        if (c2 && c2.hexTypeID == 1) {
                                             c2.hexTypeID = 2;
                                             changed = true;
                                         }
