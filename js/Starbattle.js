@@ -872,7 +872,7 @@ $(document).ready(function () {
 
             //get immediate neighbors
             let cellCoordsList = [];
-            for (let neighborCoords of getAllNeighborHexCoords([x, y])) {
+            for (let neighborCoords of getAllNeighborHexCoords([cell.x, cell.y])) {
                 let ncell = getBoardCell(neighborCoords);
                 if (ncell && ncell.hexTypeID > 0) {
                     cellCoordsList.push(neighborCoords);
@@ -880,14 +880,13 @@ $(document).ready(function () {
             }
             cell.cellGroups.push(makeCellGroup(1, cellCoordsList));
 
-
             //get lines in 3 axes.
             for (var i = 0; i < 3; i++) {
                 var axisCoords = [];
                 //for each direction
                 for (var i2 = 0; i2 < 4; i2 += 3) {
-                    var x2 = x;
-                    var y2 = y;
+                    var x2 = cell.x;
+                    var y2 = cell.y;
                     //travel to the edge of the board, cataloging cells on the way.
                     while (true) {
                         let neighborcoords = getNeighborHexCoords([x2, y2], i + i2);
@@ -2785,10 +2784,10 @@ $(document).ready(function () {
                                                 return false;
                                             }
                                         }
-                                        //if (shiftKey) {
-                                        //    solutionBoards.push(JSON.stringify(flatBoard));
-                                        //    return true;
-                                        //}
+                                        if (shiftKey) {
+                                            solutionBoards.push(JSON.stringify(flatBoard));
+                                            return true;
+                                        }
                                     }
                                     //} else {
                                     //    cell.number = 1;
@@ -2923,6 +2922,13 @@ $(document).ready(function () {
                     }
 
                     //todo maybe: check northeast/southwest and northwest/southeast lines.
+
+                    //prep region groups for final check.
+                    //for each cell, if that cell isn't part of a region, assign it to this group.  now do a flood fill to get all cells in this region.  borrow logic from neighbor
+                    /*let regiongroup = [];
+                    getFillList
+                    finalCheckGroups.push(colGroup);
+                    */
 
                     //naively turn off cells that are already fulfilled.
                     let boardJSON = getBoardJSON();
