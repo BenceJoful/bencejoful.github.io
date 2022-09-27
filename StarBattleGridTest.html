@@ -1,0 +1,910 @@
+﻿<!--
+    todo:
+        determine 2x2 blocks within this region that are open.
+        scan a line: get consecutive open spots 1 or 2 at a time.  If openspots.length + stars < numstars, error.  if openspots.length + stars = numstars, set stars in the single spaces and set Xs next to the double spaces.
+        scan 2 lines: get consecutive open spots 1 or 2 at a time.  If openspots.length + stars < numstars, error.  if openspots.length + stars = numstars, set stars in the single spaces and set Xs next to the double spaces.
+        handle 3 open spaces by setting X next to the center.
+        save/show/allow setting detected pencil marks?
+-->
+
+<style>
+    table {
+        border-collapse: collapse;
+    }
+
+    td {
+        border: 1px solid black;
+        width: 50px;
+        height: 50px;
+        text-align: center
+    }
+
+    .parityx {
+        background-color: green;
+    }
+
+    .parityo {
+        background-color: gold;
+    }
+
+    .parityc {
+        background-color: lightblue;
+    }
+
+    .bordertop {
+        border-top: 4px solid black;
+    }
+
+    .borderbottom {
+        border-bottom: 4px solid black;
+    }
+
+    .borderleft {
+        border-left: 4px solid black;
+    }
+
+    .borderright {
+        border-right: 4px solid black;
+    }
+</style>
+<script type="text/javascript" src="js/reference/jquery-latest.js"></script>
+<script type="text/javascript">
+    'use strict';
+
+    class Cell {
+        x = 0;
+        y = 0;
+        number = 0;
+        parity = '';
+        constructor(x, y, number, parity) {
+            this.x = x;
+            this.y = y;
+            this.number = number;
+            this.parity = parity;
+            this.getDef = function () {
+                return [this.x, this.y, this.number, this.parity];
+            }
+        }
+    }
+    $(document).ready(function () {
+        let COLS = 10;
+        let NUMSTARS = 2;
+        var COLSstr = prompt("Number of rows/cols:", COLS);
+        if (COLSstr && COLS != Number(COLSstr)) {
+            COLS = Number(COLSstr);
+            var NUMSTARSstr = prompt("Number of stars per row/col:", NUMSTARS);
+            if (NUMSTARSstr) {
+                NUMSTARS = Number(NUMSTARSstr);
+            }
+        }
+
+        let board = [];
+        for (let i = 0; i < COLS; i++) {
+            board.push([]);
+            for (let j = 0; j < COLS; j++) {
+                board[i].push(new Cell(i, j, 0, ''));
+            }
+        }
+
+        function inBoard(x, y) {
+            return x >= 0 && x < COLS && y >= 0 && y < COLS;
+        }
+
+        function drawBoard() {
+            $("#testgrid").empty();
+            for (let j = 0; j < COLS; j++) {
+                let cells = '';
+                for (let i = 0; i < COLS; i++) {
+                    let cell = board[i][j];
+                    let borderclasses = "";
+                    if (cell.x == 0 || cell.number != board[cell.x - 1][cell.y].number) {
+                        borderclasses += " borderleft";
+                    }
+                    if (cell.y == 0 || cell.number != board[cell.x][cell.y - 1].number) {
+                        borderclasses += " bordertop";
+                    }
+                    if (cell.x == COLS - 1 || cell.number != board[cell.x + 1][cell.y].number) {
+                        borderclasses += " borderright";
+                    }
+                    if (cell.y == COLS - 1 || cell.number != board[cell.x][cell.y + 1].number) {
+                        borderclasses += " borderbottom";
+                    }
+                    cells += "<td id='" + cell.x + "_" + cell.y + "' class='parity" + cell.parity + borderclasses + "'>" + cell.number + "</td>";
+                }
+                $("#testgrid").append('<tr>' + cells + '</tr>');
+            }
+        }
+        drawBoard();
+        let inputcharacter = 'o';
+        $("#txthelp").val('Star');
+        document.body.onkeydown = function (e) {
+            if (e.key == " ") {
+                if (inputcharacter == "x") {
+                    inputcharacter = "c";
+                    $("#txthelp").val("Clue");
+                } else if (inputcharacter == "o") {
+                    inputcharacter = "x";
+                    $("#txthelp").val("X");
+                } else {
+                    inputcharacter = "o";
+                    $("#txthelp").val("Star");
+                }
+            } else {
+                switch (e.key) {
+                    case "0":
+                    case "1":
+                    case "2":
+                    case "3":
+                    case "4":
+                    case "5":
+                    case "6":
+                    case "7":
+                    case "8":
+                    case "9":
+                        inputcharacter = e.key;
+                        $("#txthelp").val(inputcharacter);
+                        break;
+                    case "x":
+                        inputcharacter = e.key;
+                        $("#txthelp").val("X");
+                        break;
+                    case "o":
+                        inputcharacter = e.key;
+                        $("#txthelp").val("Star");
+                        break;
+                    case "c":
+                        inputcharacter = e.key;
+                        $("#txthelp").val("Clue");
+                        break;
+                }
+            }
+            if (e.key == "s") {
+                let boardDef = getBoardJSON();
+                $("#txthelp").val(boardDef);
+                window.localStorage.setItem("testgridBoardDef", boardDef);
+            }
+            if (e.key == "l") {
+
+                let boardDef = prompt("board json", "<last saved board>");
+                if (boardDef) {
+                    if (boardDef == '<last saved board>') {
+                        boardDef = window.localStorage.getItem("testgridBoardDef");
+                    }
+                    doBoardChange(boardDef);
+                    drawBoard();
+                }
+            }
+            if (e.key == 'z' && e.ctrlKey) {
+                //undo
+                undoBoardChange();
+                drawBoard();
+            } else if (e.key == 'Z' && e.ctrlKey) {
+                //super undo
+                undoBoardChange(10);
+                drawBoard();
+            } else if (e.key == 'y' && e.ctrlKey) {
+                //redo
+                redoBoardChange();
+                drawBoard();
+            } else if (e.key == 'Y' && e.ctrlKey) {
+                //super redo
+                redoBoardChange(10);
+                drawBoard();
+            }
+            if (e.key == 'u') {
+                for (let j = 0; j < COLS; j++) {
+                    for (let i = 0; i < COLS; i++) {
+                        let cell = board[i][j];
+                        cell.parity = '';
+                    }
+                }
+                drawBoard();
+            }
+            if (e.key == 'b') {
+                //todo: bifurcate from this position.
+                //for (let j = 0; j < COLS; j++) {
+                //    for (let i = 0; i < COLS; i++) {
+                //        let cell = board[i][j];
+                //        cell.parity = '';
+                //    }
+                //}
+                //drawBoard();
+                function getFirstOpenCellCoords() {
+                    for (let j = 0; j < COLS; j++) {
+                        for (let i = 0; i < COLS; i++) {
+                            let cell = board[i][j];
+                            if (cell.parity == '') {
+                                return [i, j];
+                            }
+                        }
+                    }
+                    return null;
+                }
+                let processingStartTime = Date.now();
+                let timeLimitExceeded = false;
+                let timelimit = 15000;
+
+                //let boardJSON = getBoardJSON();
+                let cellCoords = [];
+                cellCoords.push(getFirstOpenCellCoords());
+                while (cellCoords.length && cellCoords[cellCoords.length - 1]) {
+                    if (Date.now() - processingStartTime > timelimit) {
+                        if (timeLimitExceeded == false) {
+                            let addlSeconds = prompt((timelimit / 1000) + " second time limit exceeded.  How many more seconds do you want to give it?", "0");
+                            if (!isNaN(Number(addlSeconds)) && Number(addlSeconds) > 0) {
+                                processingStartTime = Date.now();
+                                timelimit = Number(addlSeconds) * 1000;
+                            } else {
+                                timeLimitExceeded = true;
+                                drawBoard();
+                            }
+                        }
+                        if (timeLimitExceeded) {
+                            return false;
+                        }
+                    }
+                    registerBoardChange();
+                    let nextCellCoords = cellCoords[cellCoords.length - 1];
+                    board[nextCellCoords[0]][nextCellCoords[1]].parity = 'o';
+                    drawBoard();
+
+                    let errorMsg = solveParity();
+                    drawBoard();
+                    if (errorMsg != "") {
+
+                        undoBoardChange();
+                        drawBoard();
+                        registerBoardChange();
+                        board[nextCellCoords[0]][nextCellCoords[1]].parity = 'x';
+                        drawBoard();
+                        errorMsg = solveParity();
+                        drawBoard();
+                        if (errorMsg != "") {
+                            undoBoardChange();
+                            drawBoard();
+                            //go up the stack once.  pop off and undo that one.
+                            undoBoardChange();
+                            nextCellCoords = cellCoords.pop();
+                            board[nextCellCoords[0]][nextCellCoords[1]].parity = 'x';
+                            drawBoard();
+                            //alert("No valid solutions.");
+                            //doBoardChange(boardJSON);
+                            //drawBoard();
+                            //return;
+                        }
+                    }
+                    cellCoords.push(getFirstOpenCellCoords());
+                }
+                drawBoard();
+            }
+        }
+        $("#testgrid").on("click", "tr td", function () {
+            clearNumbers();
+            let id = this.id;
+            let cell = board[Number(id.split("_")[0])][Number(id.split("_")[1])];
+            let tempInput = inputcharacter;
+            //todo: find better thing for this.
+            //if (event.ctrlKey) {
+            //    tempInput = 'x';
+            //}
+            switch (tempInput) {
+                case "o":
+                case "x":
+                case "c":
+                    registerBoardChange();
+                    if (cell.parity == tempInput) {
+                        cell.parity = '';
+                    } else {
+                        cell.parity = tempInput;;
+                    }
+                    let errorMsg = solveParity(event.shiftKey);
+                    if (errorMsg != "") {
+                        setTimeout(function () {
+                            $("#txthelp").val(errorMsg + " " + Date.now());
+                        }, 20);
+                    }
+                    break;
+                default:
+                    registerBoardChange();
+                    if (cell.number == Number(tempInput)) {
+                        cell.number = 0;
+                    } else {
+                        cell.number = Number(tempInput);
+                    }
+                    break;
+            }
+            drawBoard();
+        });
+        function clearNumbers() {
+            for (let j = 0; j < COLS; j++) {
+                for (let i = 0; i < COLS; i++) {
+                    let cell = board[i][j];
+                    cell.number = 0;
+                }
+            }
+        }
+        this.doClickCheckImpossiblePlacements = function () {
+            clearNumbers();
+            registerBoardChange();
+            let errorMsg = checkImpossiblePlacements(event.shiftKey);
+            if (errorMsg != '') {
+                $("#txthelp").val(errorMsg + " " + Date.now());
+            }
+            drawBoard();
+        }
+        function checkImpossiblePlacements(saveHistory) {
+            let changed = false;
+            //for each cell
+            for (let j = 0; j < COLS; j++) {
+                for (let i = 0; i < COLS; i++) {
+                    let cell = board[i][j];
+                    //if it's open, try setting to star
+                    if (cell.parity == '') {
+                        //set it to a star, solve parity.
+                        registerBoardChange();
+                        cell.parity = 'o';
+                        let errorMsg = solveParity();
+                        undoBoardChange();
+                        if (errorMsg != '') {
+                            //if it fails, undo, set it to an X, solve parity.
+                            //alert("can't set star at " + (i + 1) + "," + (j + 1) + ". Setting to X");
+                            if (saveHistory) {
+                                registerBoardChange();
+                            }
+                            changed = true;
+                            board[i][j].parity = 'x';
+                            errorMsg = solveParity();
+                            if (errorMsg != '') {
+                                drawBoard();
+                                return "Can't set star or X at " + (i + 1) + "," + (j + 1) + ".";
+                            }
+                        }
+                        //if it's still open, try setting to X
+                        cell = board[i][j];
+                        if (cell.parity == '') {
+                            //set it to a star, solve parity.
+                            registerBoardChange();
+                            cell.parity = 'x';
+                            let errorMsg = solveParity();
+                            undoBoardChange();
+                            if (errorMsg != '') {
+                                //if it fails, undo, set it to a star, solve parity.
+                                //alert("can't set X at " + (i + 1) + "," + (j + 1) + ". Setting to star");
+                                if (saveHistory) {
+                                    registerBoardChange();
+                                }
+                                changed = true;
+                                board[i][j].parity = 'o';
+                                errorMsg = solveParity();
+                                if (errorMsg != '') {
+                                    drawBoard();
+                                    return "Can't set star or X at " + (i + 1) + "," + (j + 1) + ".";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (changed) {
+                let errorMsg = checkImpossiblePlacements(saveHistory);
+                if (errorMsg != "") {
+                    return errorMsg;
+                }
+            }
+            return '';
+
+        }
+        function solveParity(saveHistory) {
+            let boardJSON = getBoardJSON();
+            let maxStars = NUMSTARS;
+            let maxXs = COLS - NUMSTARS;//only for row/col, not region
+            let changed = false;
+            let errorMsg = "";
+            //find stars.  If adjacent to an empty cell, turn it to X.  if adjacent with a star, break.
+            for (let j = 0; j < COLS; j++) {
+                for (let i = 0; i < COLS; i++) {
+                    let cell = board[i][j];
+                    if (cell.parity == 'o') {
+                        for (let ncellX = cell.x - 1; ncellX <= cell.x + 1; ncellX++) {
+                            for (let ncellY = cell.y - 1; ncellY <= cell.y + 1; ncellY++) {
+                                if (inBoard(ncellX, ncellY)) {
+                                    let ncell = board[ncellX][ncellY];
+                                    if (cell != ncell) {
+                                        if (ncell.parity == '') {
+                                            ncell.parity = 'x';
+                                            changed = true;
+                                            break;
+                                        } else if (ncell.parity == 'o') {
+                                            errorMsg = "two stars touch";
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (errorMsg != "" || changed) break;
+                    }
+                }
+                if (errorMsg != "" || changed) break;
+            }
+
+            if (errorMsg == "" && !changed) {
+
+                //check each row
+                //find stars, Xs.
+                //if stars = starnum, set the rest to X.
+                //some way to scan for two columns at a time in 2x2s
+                for (let j = 0; j < COLS; j++) {
+                    //test row
+                    let stars = 0;
+                    let Xs = 0;
+                    let openSpots = [];
+                    let openSpotPending = false;
+                    for (let i = 0; i < COLS; i++) {
+                        let cell = board[i][j];
+                        if (cell.parity == 'x' || cell.parity == 'c') {
+                            Xs++;
+                            openSpotPending = false;
+                        } else if (cell.parity == 'o') {
+                            stars++;
+                            openSpotPending = false;
+                        } else {
+                            if (openSpotPending) {
+                                openSpots[openSpots.length - 1].push(cell);
+                                openSpotPending = false;
+                            } else {
+                                //make new open spot.
+                                openSpots.push([cell]);
+                                openSpotPending = true;
+                            }
+                        }
+                    }
+                    if (Xs == maxXs) {
+                        for (let i = 0; i < COLS; i++) {
+                            let cell = board[i][j];
+                            if (cell.parity == '') {
+                                cell.parity = 'o';
+                                changed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (Xs > maxXs) {
+                        errorMsg = "no room for stars in row " + (j + 1);
+                    }
+                    if (errorMsg != "" || changed) break;
+
+                    if (stars == maxStars) {
+                        for (let i = 0; i < COLS; i++) {
+                            let cell = board[i][j];
+                            if (cell.parity == '') {
+                                cell.parity = 'x';
+                                changed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (stars > maxStars) {
+                        errorMsg = "too many stars in row " + (j + 1);
+                    }
+                    if (errorMsg != "" || changed) break;
+
+                    if (stars + openSpots.length < NUMSTARS) {
+                        errorMsg = "no room for stars in row " + (j + 1);
+                    }
+                    if (errorMsg != "" || changed) break;
+
+                    if (stars < NUMSTARS && stars + openSpots.length == NUMSTARS) {
+                        //errorMsg = "found the right open spots in row " + (j + 1) + ": " + openSpots;
+                        for (let openSpot of openSpots) {
+                            if (openSpot.length == 1) {
+                                openSpot[0].parity = 'o';
+                                changed = true;
+                                break;
+                            } else {
+                                for (let openSpotCell of openSpot) {
+                                    if (inBoard(openSpotCell.x, openSpotCell.y - 1) && board[openSpotCell.x][openSpotCell.y - 1].parity == '') {
+                                        board[openSpotCell.x][openSpotCell.y - 1].parity = 'x';
+                                        changed = true;
+                                        break;
+                                    }
+                                    if (inBoard(openSpotCell.x, openSpotCell.y + 1) && board[openSpotCell.x][openSpotCell.y + 1].parity == '') {
+                                        board[openSpotCell.x][openSpotCell.y + 1].parity = 'x';
+                                        changed = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (errorMsg != "" || changed) break;
+                }
+            }
+
+            if (errorMsg == "" && !changed) {
+                //check each col
+                //find stars, Xs.
+                //if stars = starnum, set the rest to X.
+                //some way to scan for two columns at a time in 2x2s
+                for (let i = 0; i < COLS; i++) {
+                    //test col
+                    let stars = 0;
+                    let Xs = 0;
+                    let openSpots = [];
+                    let openSpotPending = false;
+                    for (let j = 0; j < COLS; j++) {
+                        let cell = board[i][j];
+                        if (cell.parity == 'x' || cell.parity == 'c') {
+                            Xs++;
+                            openSpotPending = false;
+                        } else if (cell.parity == 'o') {
+                            stars++;
+                            openSpotPending = false;
+                        } else {
+                            if (openSpotPending) {
+                                openSpots[openSpots.length - 1].push(cell);
+                                openSpotPending = false;
+                            } else {
+                                //make new open spot.
+                                openSpots.push([cell]);
+                                openSpotPending = true;
+                            }
+                        }
+                    }
+                    if (Xs == maxXs) {
+                        for (let j = 0; j < COLS; j++) {
+                            let cell = board[i][j];
+                            if (cell.parity == '') {
+                                cell.parity = 'o';
+                                changed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (Xs > maxXs) {
+                        errorMsg = "too many Xs in col " + (i + 1);
+                    }
+                    if (errorMsg != "" || changed) break;
+
+                    if (stars == maxStars) {
+                        for (let j = 0; j < COLS; j++) {
+                            let cell = board[i][j];
+                            if (cell.parity == '') {
+                                cell.parity = 'x';
+                                changed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (stars > maxStars) {
+                        errorMsg = "too many stars in col " + (i + 1);
+                    }
+                    if (errorMsg != "" || changed) break;
+
+                    if (stars + openSpots.length < NUMSTARS) {
+                        errorMsg = "no room for stars in col " + (i + 1);
+                    }
+                    if (errorMsg != "" || changed) break;
+
+                    if (stars < NUMSTARS && stars + openSpots.length == NUMSTARS) {
+                        //errorMsg = "found the right open spots in row " + (j + 1) + ": " + openSpots;
+                        for (let openSpot of openSpots) {
+                            if (openSpot.length == 1) {
+                                openSpot[0].parity = 'o';
+                                changed = true;
+                                break;
+                            } else {
+                                for (let openSpotCell of openSpot) {
+                                    if (inBoard(openSpotCell.x - 1, openSpotCell.y) && board[openSpotCell.x - 1][openSpotCell.y].parity == '') {
+                                        board[openSpotCell.x - 1][openSpotCell.y].parity = 'x';
+                                        changed = true;
+                                        break;
+                                    }
+                                    if (inBoard(openSpotCell.x + 1, openSpotCell.y) && board[openSpotCell.x + 1][openSpotCell.y].parity == '') {
+                                        board[openSpotCell.x + 1][openSpotCell.y].parity = 'x';
+                                        changed = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (errorMsg != "" || changed) break;
+                }
+            }
+
+            if (errorMsg == "" && !changed) {
+                //check pairs of row
+                for (let j = 0; j < COLS - 1; j++) {
+                    //test row
+                    let stars = 0;
+                    let openSpots = [];
+                    let openSpotPending = false;
+                    for (let i = 0; i < COLS; i++) {
+                        let cell = board[i][j];
+                        let ncell = board[i][j + 1];
+                        if ((cell.parity == 'x' || cell.parity == 'c') &&
+                            (ncell.parity == 'x' || ncell.parity == 'c')) {
+                            openSpotPending = false;
+                        } else if (cell.parity == 'o' || ncell.parity == 'o') {
+                            stars++;
+                            openSpotPending = false;
+                        } else {
+                            if (openSpotPending) {
+                                if (cell.parity == '') {
+                                    openSpots[openSpots.length - 1].push(cell);
+                                }
+                                if (ncell.parity == '') {
+                                    openSpots[openSpots.length - 1].push(ncell);
+                                }
+                                openSpotPending = false;
+                            } else {
+                                //make new open spot.
+                                if (cell.parity == '') {
+                                    openSpots.push([cell]);
+                                    if (ncell.parity == '') {
+                                        openSpots[openSpots.length - 1].push(ncell);
+                                    }
+                                } else if (ncell.parity == '') {
+                                    openSpots.push([ncell]);
+                                }
+                                openSpotPending = true;
+                            }
+                        }
+                    }
+
+                    if (stars + openSpots.length < NUMSTARS * 2) {
+                        errorMsg = "no room for stars in rows " + (j + 1) + " and " + (j + 2);
+                    }
+                    if (errorMsg != "" || changed) break;
+
+                    if (stars < NUMSTARS * 2 && stars + openSpots.length == NUMSTARS * 2) {
+                        //errorMsg = "found the right open spots in rows " + (j + 1) + " and " + (j + 2) + ": " + openSpots;
+                        for (let openSpot of openSpots) {
+                            if (openSpot.length == 1) {
+                                openSpot[0].parity = 'o';
+                                changed = true;
+                                break;
+                            } else {
+                                for (let openSpotCell of openSpot) {
+                                    openSpotCell.number = openSpot.length;
+                                    //todo later: for pairs that are next to each other, turn off the adjacent cells.
+                                    //if (inBoard(openSpotCell.x, openSpotCell.y - 1) && board[openSpotCell.x][openSpotCell.y - 1].parity == '') {
+                                    //    board[openSpotCell.x][openSpotCell.y - 1].parity = 'x';
+                                    //    changed = true;
+                                    //    break;
+                                    //}
+                                    //if (inBoard(openSpotCell.x, openSpotCell.y + 1) && board[openSpotCell.x][openSpotCell.y + 1].parity == '') {
+                                    //    board[openSpotCell.x][openSpotCell.y + 1].parity = 'x';
+                                    //    changed = true;
+                                    //    break;
+                                    //}
+                                }
+                            }
+                        }
+                    }
+                    if (errorMsg != "" || changed) break;
+                }
+            }
+            if (errorMsg == "" && !changed) {
+                //check pairs of cols
+                for (let i = 0; i < COLS - 1; i++) {
+                    //test row
+                    let stars = 0;
+                    let openSpots = [];
+                    let openSpotPending = false;
+                    for (let j = 0; j < COLS; j++) {
+                        let cell = board[i][j];
+                        let ncell = board[i + 1][j];
+                        if ((cell.parity == 'x' || cell.parity == 'c') &&
+                            (ncell.parity == 'x' || ncell.parity == 'c')) {
+                            openSpotPending = false;
+                        } else if (cell.parity == 'o' || ncell.parity == 'o') {
+                            stars++;
+                            openSpotPending = false;
+                        } else {
+                            if (openSpotPending) {
+                                if (cell.parity == '') {
+                                    openSpots[openSpots.length - 1].push(cell);
+                                }
+                                if (ncell.parity == '') {
+                                    openSpots[openSpots.length - 1].push(ncell);
+                                }
+                                openSpotPending = false;
+                            } else {
+                                //make new open spot.
+                                if (cell.parity == '') {
+                                    openSpots.push([cell]);
+                                    if (ncell.parity == '') {
+                                        openSpots[openSpots.length - 1].push(ncell);
+                                    }
+                                } else if (ncell.parity == '') {
+                                    openSpots.push([ncell]);
+                                }
+                                openSpotPending = true;
+                            }
+                        }
+                    }
+
+                    if (stars + openSpots.length < NUMSTARS * 2) {
+                        errorMsg = "no room for stars in cols " + (i + 1) + " and " + (i + 2);
+                    }
+                    if (errorMsg != "" || changed) break;
+
+                    if (stars < NUMSTARS * 2 && stars + openSpots.length == NUMSTARS * 2) {
+                        //errorMsg = "found the right open spots in rows " + (j + 1) + " and " + (j + 2) + ": " + openSpots;
+                        for (let openSpot of openSpots) {
+                            if (openSpot.length == 1) {
+                                openSpot[0].parity = 'o';
+                                changed = true;
+                                break;
+                            } else {
+                                for (let openSpotCell of openSpot) {
+                                    openSpotCell.number = openSpot.length;
+                                    //todo later: for pairs that are next to each other, turn off the adjacent cells.
+                                    //if (inBoard(openSpotCell.x, openSpotCell.y - 1) && board[openSpotCell.x][openSpotCell.y - 1].parity == '') {
+                                    //    board[openSpotCell.x][openSpotCell.y - 1].parity = 'x';
+                                    //    changed = true;
+                                    //    break;
+                                    //}
+                                    //if (inBoard(openSpotCell.x, openSpotCell.y + 1) && board[openSpotCell.x][openSpotCell.y + 1].parity == '') {
+                                    //    board[openSpotCell.x][openSpotCell.y + 1].parity = 'x';
+                                    //    changed = true;
+                                    //    break;
+                                    //}
+                                }
+                            }
+                        }
+                    }
+                    if (errorMsg != "" || changed) break;
+                }
+            }
+
+            ////stars/Xs in a numbered region.
+            //if (errorMsg == "" && !changed) {
+            //    let regionCells = [];
+            //    for (var regionI = 1; regionI <= 9; regionI++) {
+            //        regionCells[regionI] = [];
+            //    }
+            //    for (let j = 0; j < COLS; j++) {
+            //        for (let i = 0; i < COLS; i++) {
+            //            let cell = board[i][j];
+            //            if (cell.number > 0) {
+            //                regionCells[cell.number].push(cell);
+            //            }
+            //        }
+            //    }
+            //    for (var regionI = 1; regionI <= 9; regionI++) {
+            //        let stars = 0;
+            //        let Xs = 0;
+            //        let starCells = [];
+            //        for (let cell of regionCells[regionI]) {
+            //            if (cell.parity == 'o') {
+            //                stars++;
+            //                starCells.push(cell);
+            //            }
+            //            if (cell.parity == 'x' || cell.parity == 'c') {
+            //                Xs++;
+            //            }
+            //        }
+            //        if (stars < maxStars && starCells.length > 0) {
+            //            //todo: determine 2x2 blocks within this region that are open.
+            //            //let oddGroupNeighbors = getOddGroupNeighbors(starCells);
+            //            //if (oddGroupNeighbors.length == 0) {
+            //            //    errorMsg = 'No way for odd group to grow in region ' + regionI;
+            //            //    break;
+            //            //}
+            //            //if (oddGroupNeighbors.length == 1) {
+            //            //    oddGroupNeighbors[0].parity = 'o';
+            //            //    changed = true;
+            //            //    break;
+            //            //}
+            //        }
+            //        if (stars == maxStars) {
+            //            for (let cell of regionCells[regionI]) {
+            //                if (cell.parity == '') {
+            //                    cell.parity = 'x';
+            //                    changed = true;
+            //                    break;
+            //                }
+            //            }
+            //        }
+            //        if (stars > maxStars) {
+            //            errorMsg = 'Too many stars in region ' + regionI;
+            //            break;
+            //        }
+            //        if (Xs == maxXs) {
+            //            for (let cell of regionCells[regionI]) {
+            //                if (cell.parity == '') {
+            //                    cell.parity = 'o';
+            //                    changed = true;
+            //                    break;
+            //                }
+            //            }
+            //        }
+            //        if (Xs > maxXs) {
+            //            errorMsg = 'Too many Xs in region ' + regionI;
+            //            break;
+            //        }
+            //        if (errorMsg != "" || changed) break;
+            //    }
+            //}
+            //if (errorMsg == "" && !changed) {
+            //    errorMsg = checkImpossiblePlacements(saveHistory);
+            //    if (errorMsg == "CHANGED") {
+            //        changed = true;
+            //        errorMsg = '';
+            //    }
+            //}
+            if (errorMsg == "" && changed) {
+                if (saveHistory) {
+                    registerBoardChange(boardJSON);
+                }
+                errorMsg = solveParity(saveHistory);
+            }
+            return errorMsg;
+        }
+        let undoboards = [];
+        let redoboards = [];
+        function getBoardJSON() {
+            let boardCells = [];
+            for (let i = 0; i < COLS; i++) {
+                boardCells.push([]);
+                for (let j = 0; j < COLS; j++) {
+                    boardCells[i].push(board[i][j].getDef());
+                }
+            }
+            return JSON.stringify(boardCells);
+        }
+        function registerBoardChange(boardJSON) {
+            undoboards.push(boardJSON || getBoardJSON());
+            redoboards = [];
+        }
+        function undoBoardChange(numTimes) {
+            numTimes = numTimes || 1;
+            if (undoboards.length > 0 && undoboards.length < numTimes) {
+                numTimes = undoboards.length;
+            }
+            if (undoboards.length >= numTimes) {
+                redoboards.push(getBoardJSON());
+                for (var i = 0; i < numTimes - 1; i++) {
+                    redoboards.push(undoboards.pop());
+                }
+                doBoardChange(undoboards.pop());
+            }
+        }
+
+        function redoBoardChange(numTimes) {
+            numTimes = numTimes || 1;
+            if (redoboards.length > 0 && redoboards.length < numTimes) {
+                numTimes = redoboards.length;
+            }
+
+            if (redoboards.length) {
+                undoboards.push(getBoardJSON());
+                for (var i = 0; i < numTimes - 1; i++) {
+                    undoboards.push(redoboards.pop());
+                }
+                doBoardChange(redoboards.pop());
+            }
+        }
+        function doBoardChange(boardJSON) {
+            let boardCells = JSON.parse(boardJSON);
+            board = [];
+            COLS = boardCells.length;
+            for (let i = 0; i < COLS; i++) {
+                board.push([]);
+                for (let j = 0; j < COLS; j++) {
+                    let boardCell = boardCells[i][j];
+                    board[i].push(new Cell(boardCell[0], boardCell[1], boardCell[2], boardCell[3]));
+                }
+            }
+        }
+    });
+
+</script>
+<input type="button" onclick="doClickCheckImpossiblePlacements()" value="Check Impossible Placements" />
+<table id="testgrid">
+</table>
+<textarea id="txthelp" style=" width: 100%; margin-top: 20px; vertical-align: bottom"></textarea>
+
