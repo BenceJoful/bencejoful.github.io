@@ -1,10 +1,13 @@
-﻿<!--
+<!--
     todo:
         determine 2x2 blocks within this region that are open.
         scan a line: get consecutive open spots 1 or 2 at a time.  If openspots.length + stars < numstars, error.  if openspots.length + stars = numstars, set stars in the single spaces and set Xs next to the double spaces.
         scan 2 lines: get consecutive open spots 1 or 2 at a time.  If openspots.length + stars < numstars, error.  if openspots.length + stars = numstars, set stars in the single spaces and set Xs next to the double spaces.
         handle 3 open spaces by setting X next to the center.
-        save/show/allow setting detected pencil marks?
+        save/show/allow setting detected pencil marks?11
+
+
+    sudoku / psuedo-ku: [[[0,0,1,""],[0,1,1,""],[0,2,1,""],[0,3,4,""],[0,4,4,""],[0,5,4,""],[0,6,7,""],[0,7,7,""],[0,8,7,""]],[[1,0,1,""],[1,1,1,""],[1,2,1,""],[1,3,4,""],[1,4,4,""],[1,5,4,""],[1,6,7,""],[1,7,7,""],[1,8,7,""]],[[2,0,1,""],[2,1,1,""],[2,2,1,""],[2,3,4,""],[2,4,4,""],[2,5,4,""],[2,6,7,""],[2,7,7,""],[2,8,7,""]],[[3,0,2,""],[3,1,2,""],[3,2,2,""],[3,3,5,""],[3,4,5,""],[3,5,5,""],[3,6,8,""],[3,7,8,""],[3,8,8,""]],[[4,0,2,""],[4,1,2,""],[4,2,2,""],[4,3,5,""],[4,4,5,""],[4,5,5,""],[4,6,8,""],[4,7,8,""],[4,8,8,""]],[[5,0,2,""],[5,1,2,""],[5,2,2,""],[5,3,5,""],[5,4,5,""],[5,5,5,""],[5,6,8,""],[5,7,8,""],[5,8,8,""]],[[6,0,3,""],[6,1,3,""],[6,2,3,""],[6,3,6,""],[6,4,6,""],[6,5,6,""],[6,6,9,""],[6,7,9,""],[6,8,9,""]],[[7,0,3,""],[7,1,3,""],[7,2,3,""],[7,3,6,""],[7,4,6,""],[7,5,6,""],[7,6,9,""],[7,7,9,""],[7,8,9,""]],[[8,0,3,""],[8,1,3,""],[8,2,3,""],[8,3,6,""],[8,4,6,""],[8,5,6,""],[8,6,9,""],[8,7,9,""],[8,8,9,""]]]
 -->
 
 <style>
@@ -90,6 +93,16 @@
             return x >= 0 && x < COLS && y >= 0 && y < COLS;
         }
 
+        this.clearBoard = function(){
+            for (let j = 0; j < COLS; j++) {
+                for (let i = 0; i < COLS; i++) {
+                    let cell = board[i][j];
+                    cell.parity = '';
+                }
+            }
+            drawBoard();
+        }
+
         function drawBoard() {
             $("#testgrid").empty();
             for (let j = 0; j < COLS; j++) {
@@ -119,16 +132,7 @@
         $("#txthelp").val('Star');
         document.body.onkeydown = function (e) {
             if (e.key == " ") {
-                if (inputcharacter == "x") {
-                    inputcharacter = "c";
-                    $("#txthelp").val("Clue");
-                } else if (inputcharacter == "o") {
-                    inputcharacter = "x";
-                    $("#txthelp").val("X");
-                } else {
-                    inputcharacter = "o";
-                    $("#txthelp").val("Star");
-                }
+                doSwapInput();
             } else {
                 switch (e.key) {
                     case "0":
@@ -192,13 +196,7 @@
                 drawBoard();
             }
             if (e.key == 'u') {
-                for (let j = 0; j < COLS; j++) {
-                    for (let i = 0; i < COLS; i++) {
-                        let cell = board[i][j];
-                        cell.parity = '';
-                    }
-                }
-                drawBoard();
+                clearBoard();
             }
             if (e.key == 'b') {
                 //todo: bifurcate from this position.
@@ -279,7 +277,7 @@
             }
         }
         $("#testgrid").on("click", "tr td", function () {
-            clearNumbers();
+            //clearNumbers();
             let id = this.id;
             let cell = board[Number(id.split("_")[0])][Number(id.split("_")[1])];
             let tempInput = inputcharacter;
@@ -323,8 +321,20 @@
                 }
             }
         }
+        this.doSwapInput = function(){
+            if (inputcharacter == "x") {
+                inputcharacter = "c";
+                $("#txthelp").val("Clue");
+            } else if (inputcharacter == "o") {
+                inputcharacter = "x";
+                $("#txthelp").val("X");
+            } else {
+                inputcharacter = "o";
+                $("#txthelp").val("Star");
+            }
+        }
         this.doClickCheckImpossiblePlacements = function () {
-            clearNumbers();
+            //clearNumbers();
             registerBoardChange();
             let errorMsg = checkImpossiblePlacements(event.shiftKey);
             if (errorMsg != '') {
@@ -666,20 +676,20 @@
                                 changed = true;
                                 break;
                             } else {
-                                for (let openSpotCell of openSpot) {
-                                    openSpotCell.number = openSpot.length;
-                                    //todo later: for pairs that are next to each other, turn off the adjacent cells.
-                                    //if (inBoard(openSpotCell.x, openSpotCell.y - 1) && board[openSpotCell.x][openSpotCell.y - 1].parity == '') {
-                                    //    board[openSpotCell.x][openSpotCell.y - 1].parity = 'x';
-                                    //    changed = true;
-                                    //    break;
-                                    //}
-                                    //if (inBoard(openSpotCell.x, openSpotCell.y + 1) && board[openSpotCell.x][openSpotCell.y + 1].parity == '') {
-                                    //    board[openSpotCell.x][openSpotCell.y + 1].parity = 'x';
-                                    //    changed = true;
-                                    //    break;
-                                    //}
-                                }
+                                //for (let openSpotCell of openSpot) {
+                                //    openSpotCell.number = openSpot.length;
+                                //    //todo later: for pairs that are next to each other, turn off the adjacent cells.
+                                //    //if (inBoard(openSpotCell.x, openSpotCell.y - 1) && board[openSpotCell.x][openSpotCell.y - 1].parity == '') {
+                                //    //    board[openSpotCell.x][openSpotCell.y - 1].parity = 'x';
+                                //    //    changed = true;
+                                //    //    break;
+                                //    //}
+                                //    //if (inBoard(openSpotCell.x, openSpotCell.y + 1) && board[openSpotCell.x][openSpotCell.y + 1].parity == '') {
+                                //    //    board[openSpotCell.x][openSpotCell.y + 1].parity = 'x';
+                                //    //    changed = true;
+                                //    //    break;
+                                //    //}
+                                //}
                             }
                         }
                     }
@@ -739,20 +749,20 @@
                                 changed = true;
                                 break;
                             } else {
-                                for (let openSpotCell of openSpot) {
-                                    openSpotCell.number = openSpot.length;
-                                    //todo later: for pairs that are next to each other, turn off the adjacent cells.
-                                    //if (inBoard(openSpotCell.x, openSpotCell.y - 1) && board[openSpotCell.x][openSpotCell.y - 1].parity == '') {
-                                    //    board[openSpotCell.x][openSpotCell.y - 1].parity = 'x';
-                                    //    changed = true;
-                                    //    break;
-                                    //}
-                                    //if (inBoard(openSpotCell.x, openSpotCell.y + 1) && board[openSpotCell.x][openSpotCell.y + 1].parity == '') {
-                                    //    board[openSpotCell.x][openSpotCell.y + 1].parity = 'x';
-                                    //    changed = true;
-                                    //    break;
-                                    //}
-                                }
+                                //for (let openSpotCell of openSpot) {
+                                //    openSpotCell.number = openSpot.length;
+                                //    //todo later: for pairs that are next to each other, turn off the adjacent cells.
+                                //    //if (inBoard(openSpotCell.x, openSpotCell.y - 1) && board[openSpotCell.x][openSpotCell.y - 1].parity == '') {
+                                //    //    board[openSpotCell.x][openSpotCell.y - 1].parity = 'x';
+                                //    //    changed = true;
+                                //    //    break;
+                                //    //}
+                                //    //if (inBoard(openSpotCell.x, openSpotCell.y + 1) && board[openSpotCell.x][openSpotCell.y + 1].parity == '') {
+                                //    //    board[openSpotCell.x][openSpotCell.y + 1].parity = 'x';
+                                //    //    changed = true;
+                                //    //    break;
+                                //    //}
+                                //}
                             }
                         }
                     }
@@ -760,75 +770,81 @@
                 }
             }
 
-            ////stars/Xs in a numbered region.
-            //if (errorMsg == "" && !changed) {
-            //    let regionCells = [];
-            //    for (var regionI = 1; regionI <= 9; regionI++) {
-            //        regionCells[regionI] = [];
-            //    }
-            //    for (let j = 0; j < COLS; j++) {
-            //        for (let i = 0; i < COLS; i++) {
-            //            let cell = board[i][j];
-            //            if (cell.number > 0) {
-            //                regionCells[cell.number].push(cell);
-            //            }
-            //        }
-            //    }
-            //    for (var regionI = 1; regionI <= 9; regionI++) {
-            //        let stars = 0;
-            //        let Xs = 0;
-            //        let starCells = [];
-            //        for (let cell of regionCells[regionI]) {
-            //            if (cell.parity == 'o') {
-            //                stars++;
-            //                starCells.push(cell);
-            //            }
-            //            if (cell.parity == 'x' || cell.parity == 'c') {
-            //                Xs++;
-            //            }
-            //        }
-            //        if (stars < maxStars && starCells.length > 0) {
-            //            //todo: determine 2x2 blocks within this region that are open.
-            //            //let oddGroupNeighbors = getOddGroupNeighbors(starCells);
-            //            //if (oddGroupNeighbors.length == 0) {
-            //            //    errorMsg = 'No way for odd group to grow in region ' + regionI;
-            //            //    break;
-            //            //}
-            //            //if (oddGroupNeighbors.length == 1) {
-            //            //    oddGroupNeighbors[0].parity = 'o';
-            //            //    changed = true;
-            //            //    break;
-            //            //}
-            //        }
-            //        if (stars == maxStars) {
-            //            for (let cell of regionCells[regionI]) {
-            //                if (cell.parity == '') {
-            //                    cell.parity = 'x';
-            //                    changed = true;
-            //                    break;
-            //                }
-            //            }
-            //        }
-            //        if (stars > maxStars) {
-            //            errorMsg = 'Too many stars in region ' + regionI;
-            //            break;
-            //        }
-            //        if (Xs == maxXs) {
-            //            for (let cell of regionCells[regionI]) {
-            //                if (cell.parity == '') {
-            //                    cell.parity = 'o';
-            //                    changed = true;
-            //                    break;
-            //                }
-            //            }
-            //        }
-            //        if (Xs > maxXs) {
-            //            errorMsg = 'Too many Xs in region ' + regionI;
-            //            break;
-            //        }
-            //        if (errorMsg != "" || changed) break;
-            //    }
-            //}
+            //stars/Xs in a numbered region.
+            if (errorMsg == "" && !changed) {
+                let regionCells = [];
+                for (var regionI = 1; regionI <= 9; regionI++) {
+                    regionCells[regionI] = [];
+                }
+                for (let j = 0; j < COLS; j++) {
+                    for (let i = 0; i < COLS; i++) {
+                        let cell = board[i][j];
+                        if (cell.number > 0) {
+                            regionCells[cell.number].push(cell);
+                        }
+                    }
+                }
+                for (var regionI = 1; regionI <= 9; regionI++) {
+                    let regionsize = regionCells[regionI].length;
+                    if (regionsize > 0) {
+
+                        let stars = 0;
+                        let Xs = 0;
+                        let starCells = [];
+                        for (let cell of regionCells[regionI]) {
+                            if (cell.parity == 'o') {
+                                stars++;
+                                starCells.push(cell);
+                            }
+                            if (cell.parity == 'x' || cell.parity == 'c') {
+                                Xs++;
+                            }
+                        }
+                        if (stars < maxStars && starCells.length > 0) {
+                            //todo: determine 2x2 blocks within this region that are open.
+                            //let oddGroupNeighbors = getOddGroupNeighbors(starCells);
+                            //if (oddGroupNeighbors.length == 0) {
+                            //    errorMsg = 'No way for odd group to grow in region ' + regionI;
+                            //    break;
+                            //}
+                            //if (oddGroupNeighbors.length == 1) {
+                            //    oddGroupNeighbors[0].parity = 'o';
+                            //    changed = true;
+                            //    break;
+                            //}
+                        }
+                        if (stars == maxStars) {
+                            for (let cell of regionCells[regionI]) {
+                                if (cell.parity == '') {
+                                    cell.parity = 'x';
+                                    changed = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (stars > maxStars) {
+                            errorMsg = 'Too many stars in region ' + regionI;
+                            break;
+                        }
+                        let regionMaxXs = regionsize - maxStars;
+                        if (Xs == regionMaxXs) {
+                            for (let cell of regionCells[regionI]) {
+                                if (cell.parity == '') {
+                                    cell.parity = 'o';
+                                    changed = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (Xs > regionMaxXs) {
+                            errorMsg = 'Too many Xs in region ' + regionI;
+                            break;
+                        }
+                    }
+
+                    if (errorMsg != "" || changed) break;
+                }
+            }
             //if (errorMsg == "" && !changed) {
             //    errorMsg = checkImpossiblePlacements(saveHistory);
             //    if (errorMsg == "CHANGED") {
@@ -903,8 +919,10 @@
     });
 
 </script>
-<input type="button" onclick="doClickCheckImpossiblePlacements()" value="Check Impossible Placements" />
+<button style="height:80;width:80;" onclick="doClickCheckImpossiblePlacements()">Check Impossible Placements</button>
+<button style="height:80;width:80;" onclick="doSwapInput()">Swap input click type</button>
+<button style="height:80;width:80;" onclick="clearBoard()">Clear Board<br/>&nbsp;</button>
+
 <table id="testgrid">
 </table>
 <textarea id="txthelp" style=" width: 100%; margin-top: 20px; vertical-align: bottom"></textarea>
-
